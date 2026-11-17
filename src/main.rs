@@ -17,8 +17,7 @@ use nexora::app::NexoraApp;
 use nexora::security::AntiFingerprint;
 use nexora::ui::NexoraUiAssets;
 
-const TOOLBAR_LOGICAL_HEIGHT_DEFAULT: f64 = 102.0;
-const TOOLBAR_LOGICAL_HEIGHT_COLLAPSED: f64 = 74.0;
+const TOOLBAR_LOGICAL_HEIGHT: f64 = 74.0;
 const DESKTOP_USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 
 #[derive(Debug, Clone)]
@@ -45,8 +44,8 @@ pub enum BrowserAction {
     // Bookmarks and Omnibox
     ToggleBookmark { url: String, title: String },
     OmniboxQuery(String),
-    GetBookmarksBar,
-    ToggleBookmarksBar(bool),
+    ExpandOverlay(f64),
+    CollapseOverlay,
     SetZoom(u32),
 }
 
@@ -185,8 +184,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let initial_width = initial_physical.width;
     let initial_height = initial_physical.height;
 
-    let mut current_toolbar_logical_h = TOOLBAR_LOGICAL_HEIGHT_DEFAULT;
-    let initial_toolbar_h = (current_toolbar_logical_h * scale_factor) as u32;
+    let initial_toolbar_h = (TOOLBAR_LOGICAL_HEIGHT * scale_factor) as u32;
     let initial_content_h = initial_height.saturating_sub(initial_toolbar_h);
 
     let mut content_bounds = Rect {
@@ -194,11 +192,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         size: PhysicalSize::new(initial_width, initial_content_h).into(),
     };
 
-    // 1. Toolbar WebView (Tabs, Omnibox, Actions, Bookmarks Bar)
+    // 1. Toolbar WebView (Tabs, Omnibox, Actions, Dropdowns)
     let proxy_toolbar = proxy.clone();
     let toolbar_html = NexoraUiAssets::get_inlined_toolbar_html();
 
     let toolbar_webview = WebViewBuilder::new()
+        .with_transparent(true)
         .with_bounds(Rect {
             position: PhysicalPosition::new(0, 0).into(),
             size: PhysicalSize::new(initial_width, initial_toolbar_h).into(),
@@ -258,12 +257,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 let _ = proxy_toolbar.send_event(BrowserAction::OmniboxQuery(q.to_string()));
                             }
                         }
-                        "get_bookmarks_bar" => {
-                            let _ = proxy_toolbar.send_event(BrowserAction::GetBookmarksBar);
+                        "expand_overlay" => {
+                            let h = v.get("height").and_then(|h| h.as_f64()).unwrap_or(360.0);
+                            let _ = proxy_toolbar.send_event(BrowserAction::ExpandOverlay(h));
                         }
-                        "toggle_bookmarks_bar" => {
-                            let show = v.get("show").and_then(|s| s.as_bool()).unwrap_or(true);
-                            let _ = proxy_toolbar.send_event(BrowserAction::ToggleBookmarksBar(show));
+                        "collapse_overlay" => {
+                            let _ = proxy_toolbar.send_event(BrowserAction::CollapseOverlay);
                         }
                         "set_zoom" => {
                             let level = v.get("level").and_then(|l| l.as_u64()).unwrap_or(100) as u32;
@@ -532,34 +531,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             let _ = toolbar_webview.evaluate_script(&script);
                         }
                     }
-                    BrowserAction::GetBookmarksBar => {
-                        if let Ok(bookmarks) = app.db.get_bookmarks() {
-                            if let Ok(json) = serde_json::to_string(&bookmarks) {
-                                let script = format!("if (window.__nexora_render_bookmarks_bar) window.__nexora_render_bookmarks_bar({});", json);
-                                let _ = toolbar_webview.evaluate_script(&script);
-                            }
-                        }
-                    }
-                    BrowserAction::ToggleBookmarksBar(show) => {
-                        current_toolbar_logical_h = if show { TOOLBAR_LOGICAL_HEIGHT_DEFAULT } else { TOOLBAR_LOGICAL_HEIGHT_COLLAPSED };
+                    BrowserAction::ExpandOverlay(logical_h) => {
                         let sf = window.scale_factor();
-                        let toolbar_h = (current_toolbar_logical_h * sf) as u32;
+                        let expanded_h = (logical_h * sf) as u32;
                         let inner = window.inner_size();
-                        let content_h = inner.height.saturating_sub(toolbar_h);
-
-                        content_bounds = Rect {
-                            position: PhysicalPosition::new(0, toolbar_h as i32).into(),
-                            size: PhysicalSize::new(inner.width, content_h).into(),
-                        };
-
                         let _ = toolbar_webview.set_bounds(Rect {
                             position: PhysicalPosition::new(0, 0).into(),
-                            size: PhysicalSize::new(inner.width, toolbar_h).into(),
+                            size: PhysicalSize::new(inner.width, expanded_h).into(),
                         });
-
-                        for (_, wv) in tab_webviews.iter() {
-                            let _ = wv.set_bounds(content_bounds);
-                        }
+                    }
+                    BrowserAction::CollapseOverlay => {
+                        let sf = window.scale_factor();
+                        let normal_h = (TOOLBAR_LOGICAL_HEIGHT * sf) as u32;
+                        let inner = window.inner_size();
+                        let _ = toolbar_webview.set_bounds(Rect {
+                            position: PhysicalPosition::new(0, 0).into(),
+                            size: PhysicalSize::new(inner.width, normal_h).into(),
+                        });
                     }
                     BrowserAction::SetZoom(level) => {
                         if let Some(active_wv) = tab_webviews.get(&active_tab_id) {
@@ -600,7 +588,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 ..
             } => {
                 let sf = window.scale_factor();
-                let toolbar_h = (current_toolbar_logical_h * sf) as u32;
+                let toolbar_h = (TOOLBAR_LOGICAL_HEIGHT * sf) as u32;
                 let new_width = physical_size.width;
                 let new_height = physical_size.height;
                 let content_h = new_height.saturating_sub(toolbar_h);

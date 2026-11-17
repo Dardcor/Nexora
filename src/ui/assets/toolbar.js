@@ -8,7 +8,6 @@
         activeTabId: 'tab-1',
         shieldCount: 0,
         isBookmarked: false,
-        showBookmarksBar: true,
         zoomLevel: 100,
         selectedIndex: -1,
         suggestions: []
@@ -33,8 +32,7 @@
     const moreMenuDropdown = document.getElementById('more-menu-dropdown');
     const securityPopover = document.getElementById('security-popover');
     const popoverShieldVal = document.getElementById('popover-shield-val');
-    const bookmarksBarRow = document.getElementById('bookmarks-bar-row');
-    const bookmarksBarList = document.getElementById('bookmarks-bar-list');
+    const backdrop = document.getElementById('overlay-backdrop');
 
     // Caption Controls
     const btnWinMin = document.getElementById('btn-win-min');
@@ -57,6 +55,29 @@
             window.ipc.postMessage(JSON.stringify(msg));
         } else {
             console.log('[Nexora IPC]:', msg);
+        }
+    }
+
+    // --- Overlay & Transparency Management ---
+
+    function expandOverlay(height) {
+        backdrop.classList.add('show');
+        sendIpc({ type: 'expand_overlay', height: height || 360 });
+    }
+
+    function closeOverlays() {
+        const wasOpen = moreMenuDropdown.classList.contains('show') ||
+                        securityPopover.classList.contains('show') ||
+                        omniboxDropdown.classList.contains('show');
+
+        moreMenuDropdown.classList.remove('show');
+        securityPopover.classList.remove('show');
+        omniboxDropdown.classList.remove('show');
+        backdrop.classList.remove('show');
+        state.selectedIndex = -1;
+
+        if (wasOpen) {
+            sendIpc({ type: 'collapse_overlay' });
         }
     }
 
@@ -98,7 +119,6 @@
         const activeTab = state.tabs.find(t => t.id === id);
         if (activeTab) {
             omniboxInput.value = (activeTab.url === 'nexora://home' || activeTab.url === '') ? '' : activeTab.url;
-            hideOmniboxDropdown();
             closeOverlays();
             sendIpc({ type: 'switch_tab', id: id });
         }
@@ -112,7 +132,6 @@
         state.activeTabId = newId;
         omniboxInput.value = '';
         renderTabs();
-        hideOmniboxDropdown();
         closeOverlays();
         sendIpc({ type: 'new_tab', id: newId });
     }
@@ -158,7 +177,6 @@
         } else if (input.includes('.') && !input.includes(' ')) {
             targetUrl = 'https://' + input;
         } else {
-            // Google clean web search without bot/CAPTCHA walls
             targetUrl = 'https://www.google.com/search?q=' + encodeURIComponent(input);
         }
 
@@ -167,7 +185,6 @@
             active.url = targetUrl;
             omniboxInput.value = (targetUrl === 'nexora://home') ? '' : targetUrl;
             renderTabs();
-            hideOmniboxDropdown();
             closeOverlays();
             sendIpc({ type: 'navigate', url: targetUrl });
         }
@@ -180,16 +197,13 @@
 
     // --- Omnibox Dropdown Autocomplete ---
 
-    function hideOmniboxDropdown() {
-        omniboxDropdown.classList.remove('show');
-        omniboxDropdown.innerHTML = '';
-        state.selectedIndex = -1;
-        state.suggestions = [];
-    }
-
     function renderOmniboxSuggestions(suggestions) {
         if (!suggestions || suggestions.length === 0) {
-            hideOmniboxDropdown();
+            omniboxDropdown.classList.remove('show');
+            omniboxDropdown.innerHTML = '';
+            if (!moreMenuDropdown.classList.contains('show') && !securityPopover.classList.contains('show')) {
+                closeOverlays();
+            }
             return;
         }
 
@@ -226,56 +240,7 @@
         });
 
         omniboxDropdown.classList.add('show');
-    }
-
-    // --- Bookmarks Bar ---
-
-    function renderBookmarksBar(bookmarks) {
-        bookmarksBarList.innerHTML = '';
-        if (!bookmarks || bookmarks.length === 0) return;
-
-        bookmarks.forEach(bm => {
-            const chip = document.createElement('a');
-            chip.className = 'bookmark-chip';
-            chip.href = '#';
-            chip.title = `${bm.title} (${bm.url})`;
-            chip.innerHTML = `
-                <svg class="bookmark-chip-icon" viewBox="0 0 16 16" fill="currentColor">
-                    <path d="m8 1.75 2.122 4.298 4.745.69-3.434 3.346.81 4.726L8 12.585l-4.243 2.225.81-4.726L1.133 6.738l4.745-.69L8 1.75Z"/>
-                </svg>
-                <span>${escapeHtml(bm.title || bm.url)}</span>
-            `;
-
-            chip.addEventListener('click', (e) => {
-                e.preventDefault();
-                navigate(bm.url);
-            });
-
-            bookmarksBarList.appendChild(chip);
-        });
-    }
-
-    // --- Overlays (More Menu & Popover) ---
-
-    function closeOverlays() {
-        moreMenuDropdown.classList.remove('show');
-        securityPopover.classList.remove('show');
-    }
-
-    function toggleMoreMenu() {
-        const isOpen = moreMenuDropdown.classList.contains('show');
-        closeOverlays();
-        if (!isOpen) {
-            moreMenuDropdown.classList.add('show');
-        }
-    }
-
-    function toggleSecurityPopover() {
-        const isOpen = securityPopover.classList.contains('show');
-        closeOverlays();
-        if (!isOpen) {
-            securityPopover.classList.add('show');
-        }
+        expandOverlay(280);
     }
 
     // --- Event Listeners ---
@@ -293,7 +258,11 @@
     omniboxInput.addEventListener('input', (e) => {
         const val = e.target.value.trim();
         if (val.length === 0 || val.startsWith('nexora://')) {
-            hideOmniboxDropdown();
+            omniboxDropdown.classList.remove('show');
+            omniboxDropdown.innerHTML = '';
+            if (!moreMenuDropdown.classList.contains('show') && !securityPopover.classList.contains('show')) {
+                closeOverlays();
+            }
         } else {
             sendIpc({ type: 'omnibox_query', query: val });
         }
@@ -312,7 +281,7 @@
             state.selectedIndex = (state.selectedIndex - 1 + items.length) % items.length;
             updateSelection(items);
         } else if (e.key === 'Escape') {
-            hideOmniboxDropdown();
+            closeOverlays();
         }
     });
 
@@ -339,11 +308,18 @@
         }
     });
 
+    // 3-Dot More Menu Click
     btnMoreMenu.addEventListener('click', (e) => {
         e.stopPropagation();
-        toggleMoreMenu();
+        const isOpen = moreMenuDropdown.classList.contains('show');
+        closeOverlays();
+        if (!isOpen) {
+            moreMenuDropdown.classList.add('show');
+            expandOverlay(360);
+        }
     });
 
+    // Site Security Popover Click
     btnSiteInfo.addEventListener('click', (e) => {
         e.stopPropagation();
         toggleSecurityPopover();
@@ -354,16 +330,17 @@
         toggleSecurityPopover();
     });
 
-    // Close overlays when clicking outside
-    document.addEventListener('click', (e) => {
-        if (!e.target.closest('#more-menu-dropdown') && !e.target.closest('#btn-more-menu') &&
-            !e.target.closest('#security-popover') && !e.target.closest('#btn-site-info') && !e.target.closest('#btn-shield')) {
-            closeOverlays();
+    function toggleSecurityPopover() {
+        const isOpen = securityPopover.classList.contains('show');
+        closeOverlays();
+        if (!isOpen) {
+            securityPopover.classList.add('show');
+            expandOverlay(220);
         }
-        if (!e.target.closest('#omnibox-shell') && !e.target.closest('#omnibox-dropdown')) {
-            hideOmniboxDropdown();
-        }
-    });
+    }
+
+    // Click outside backdrop
+    backdrop.addEventListener('click', closeOverlays);
 
     // Menu Actions
     menuNewTab.addEventListener('click', () => {
@@ -387,6 +364,7 @@
         navigate('nexora://settings');
     });
     menuExit.addEventListener('click', () => {
+        closeOverlays();
         sendIpc({ type: 'close_window' });
     });
 
@@ -460,15 +438,12 @@
                 if (active && active.url && !active.url.startsWith('nexora://')) {
                     sendIpc({ type: 'toggle_bookmark', url: active.url, title: active.title });
                 }
-            } else if (e.shiftKey && (e.key === 'B' || e.key === 'b')) {
-                e.preventDefault();
-                state.showBookmarksBar = !state.showBookmarksBar;
-                bookmarksBarRow.classList.toggle('collapsed', !state.showBookmarksBar);
-                sendIpc({ type: 'toggle_bookmarks_bar', show: state.showBookmarksBar });
             } else if (e.shiftKey && (e.key === 'O' || e.key === 'o')) {
                 e.preventDefault();
                 navigate('nexora://bookmarks');
             }
+        } else if (e.key === 'Escape') {
+            closeOverlays();
         }
     });
 
@@ -505,15 +480,9 @@
         btnStar.classList.toggle('bookmarked', isBookmarked);
     };
 
-    window.__nexora_render_bookmarks_bar = function(bookmarks) {
-        renderBookmarksBar(bookmarks);
-    };
-
     window.__nexora_render_omnibox_suggestions = function(suggestions) {
         renderOmniboxSuggestions(suggestions);
     };
 
-    // Initial setup
     renderTabs();
-    sendIpc({ type: 'get_bookmarks_bar' });
 })();
