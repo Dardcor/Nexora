@@ -276,6 +276,7 @@ pub enum BrowserAction {
     GetProfiles,
     SwitchProfile(String),
     AddProfile { name: String, email: String, badge: String, color: String },
+    SignOut,
 }
 
 fn create_tab_webview(
@@ -602,6 +603,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             let color = v.get("color").and_then(|c| c.as_str()).unwrap_or("#4285f4").to_string();
                             let _ = proxy_toolbar.send_event(BrowserAction::AddProfile { name, email, badge, color });
                         }
+                        "sign_out" => {
+                            let _ = proxy_toolbar.send_event(BrowserAction::SignOut);
+                        }
                         _ => {}
                     }
                 }
@@ -892,6 +896,34 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     })();
                                 "#;
                                 let _ = wv.evaluate_script(favicon_script);
+
+                                if effective_url.contains("google.com") {
+                                    let google_account_script = r#"
+                                        (function() {
+                                            try {
+                                                let el = document.querySelector('a[href*="SignOutOptions"]') ||
+                                                         document.querySelector('a[aria-label*="Google Account:"]') ||
+                                                         document.querySelector('a[aria-label*="Akun Google:"]') ||
+                                                         document.querySelector('div[aria-label*="Google Account:"]') ||
+                                                         document.querySelector('div[aria-label*="Akun Google:"]');
+                                                if (el) {
+                                                    let aria = el.getAttribute('aria-label') || '';
+                                                    let match = aria.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
+                                                    if (match && window.ipc) {
+                                                        let email = match[1];
+                                                        let name = aria.replace(/Google Account:|Akun Google:/gi, '').replace(email, '').replace(/[()]/g, '').trim();
+                                                        window.ipc.postMessage(JSON.stringify({
+                                                            type: 'google_account_detected',
+                                                            email: email,
+                                                            name: name.length > 0 ? name : email.split('@')[0]
+                                                        }));
+                                                    }
+                                                }
+                                            } catch(e) {}
+                                        })();
+                                    "#;
+                                    let _ = wv.evaluate_script(google_account_script);
+                                }
                             }
                         }
                     }
@@ -918,10 +950,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 match msg_type {
                                     "google_account_detected" => {
                                         if let Some(email) = v.get("email").and_then(|e| e.as_str()) {
-                                            let name = v.get("name").and_then(|n| n.as_str()).unwrap_or("Dard");
-                                            if let Ok(Some(active_prof)) = app.db.get_active_profile() {
-                                                let _ = app.db.update_profile(&active_prof.id, name, email, &active_prof.badge, &active_prof.color);
-                                                let _ = proxy.send_event(BrowserAction::GetProfiles);
+                                            if !email.is_empty() {
+                                                let fallback = email.split('@').next().unwrap_or("User");
+                                                let name = v.get("name").and_then(|n| n.as_str()).filter(|s| !s.is_empty()).unwrap_or(fallback);
+                                                if let Ok(Some(active_prof)) = app.db.get_active_profile() {
+                                                    let _ = app.db.update_profile(&active_prof.id, name, email, "Google", &active_prof.color);
+                                                    let _ = proxy.send_event(BrowserAction::GetProfiles);
+                                                }
                                             }
                                         }
                                     }
@@ -1343,6 +1378,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                     BrowserAction::AddProfile { name, email, badge, color } => {
                         let _ = app.db.add_profile(&name, &email, &badge, &color);
+                        if let Ok(profiles) = app.db.get_profiles() {
+                            if let Ok(json_str) = serde_json::to_string(&profiles) {
+                                let script = format!("if (window.__nexora_update_profiles) window.__nexora_update_profiles({});", json_str);
+                                let _ = toolbar_webview.evaluate_script(&script);
+                            }
+                        }
+                    }
+                    BrowserAction::SignOut => {
+                        let _ = app.db.sign_out();
                         if let Ok(profiles) = app.db.get_profiles() {
                             if let Ok(json_str) = serde_json::to_string(&profiles) {
                                 let script = format!("if (window.__nexora_update_profiles) window.__nexora_update_profiles({});", json_str);

@@ -27,13 +27,16 @@
     -webkit-user-select: none;
 }
 
-body {
+html, body {
+    margin: 0;
+    padding: 0;
+    background: transparent !important;
+    background-color: transparent !important;
+    color: var(--text-normal);
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     font-size: 12px;
-    background-color: var(--chrome-bg);
-    color: var(--text-normal);
     overflow: hidden;
-    height: 74px;
+    height: 100%;
     width: 100vw;
 }
 
@@ -388,17 +391,23 @@ button {
 }
 
 .profile-avatar-circle {
-    width: 26px;
-    height: 26px;
+    width: 28px;
+    height: 28px;
     border-radius: 50%;
-    background: linear-gradient(135deg, #4285f4, #9b51e0);
-    color: #ffffff;
+    background: #3c4043;
+    color: #e8eaed;
     display: flex;
     align-items: center;
     justify-content: center;
     font-weight: 600;
     font-size: 13px;
-    border: 1.5px solid rgba(255, 255, 255, 0.2);
+    border: 1.5px solid rgba(255, 255, 255, 0.15);
+}
+
+.toolbar-avatar-svg {
+    width: 16px;
+    height: 16px;
+    color: #e8eaed;
 }
 
 .page-loading-bar {
@@ -491,8 +500,8 @@ button {
     width: 64px;
     height: 64px;
     border-radius: 50%;
-    background: linear-gradient(135deg, #4285f4, #e91e63);
-    border: 3px solid #3c4043;
+    background: #3c4043;
+    border: 3px solid #5f6368;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -500,6 +509,34 @@ button {
     font-weight: 700;
     color: #ffffff;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.popup-avatar-svg {
+    width: 38px;
+    height: 38px;
+    color: #e8eaed;
+}
+
+.btn-profile-signin {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    background: #1a73e8;
+    color: #ffffff;
+    padding: 9px 16px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 500;
+    margin-top: 10px;
+    cursor: pointer;
+    transition: background 0.15s ease, box-shadow 0.15s ease;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.btn-profile-signin:hover {
+    background: #1b66c9;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
 }
 
 .profile-badge-pill {

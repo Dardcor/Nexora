@@ -206,26 +206,17 @@ impl NexoraDatabase {
             }
         }
 
+        let _ = conn.execute("DELETE FROM profiles WHERE id IN ('prof-acip', 'prof-afdaniko', 'prof-akehu', 'prof-ardi', 'prof-berlaut', 'prof-de')", []);
+        let _ = conn.execute("UPDATE profiles SET name = 'Person 1', email = '', badge = '' WHERE email = 'dardcorxyz@gmail.com'", []);
+
         let prof_count: i64 = conn.query_row("SELECT COUNT(*) FROM profiles", [], |r| r.get(0))?;
         if prof_count == 0 {
             let now = Utc::now().timestamp_millis();
-            let initial_profiles = [
-                ("prof-main", "Dard", "dardcorxyz@gmail.com", "", "Pro", "#4285f4", 1),
-                ("prof-acip", "Acip", "acip@nexora.local", "", "", "#795548", 0),
-                ("prof-afdaniko", "Afdaniko", "afdaniko@nexora.local", "", "", "#f57c00", 0),
-                ("prof-akehu", "Akehu", "akehu@nexora.local", "", "", "#00acc1", 0),
-                ("prof-ardi", "ARDI", "ardi@nexora.local", "", "", "#e53935", 0),
-                ("prof-berlaut", "Berlaut", "berlaut@nexora.local", "", "", "#fb8c00", 0),
-                ("prof-de", "DE", "de@nexora.local", "", "", "#1e88e5", 0),
-            ];
-
-            for (id, name, email, avatar, badge, color, is_active) in initial_profiles {
-                let _ = conn.execute(
-                    "INSERT INTO profiles (id, name, email, avatar_url, badge, color, is_active, created_at)
-                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-                    params![id, name, email, avatar, badge, color, is_active, now],
-                );
-            }
+            let _ = conn.execute(
+                "INSERT INTO profiles (id, name, email, avatar_url, badge, color, is_active, created_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                params!["prof-default", "Person 1", "", "", "", "#5865f2", 1, now],
+            );
         }
 
         Ok(())
@@ -607,6 +598,15 @@ impl NexoraDatabase {
         )?;
         Ok(())
     }
+
+    pub fn sign_out(&self) -> SqlResult<()> {
+        let conn = self.conn.lock();
+        conn.execute(
+            "UPDATE profiles SET email = '', badge = '', avatar_url = '' WHERE is_active = 1",
+            [],
+        )?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -646,7 +646,11 @@ mod tests {
         assert!(!profiles.is_empty());
         let active = db.get_active_profile().unwrap();
         assert!(active.is_some());
-        assert_eq!(active.unwrap().name, "Dard");
+        assert_eq!(active.unwrap().name, "Person 1");
+
+        db.sign_out().unwrap();
+        let after_signout = db.get_active_profile().unwrap().unwrap();
+        assert_eq!(after_signout.email, "");
 
         let _ = fs::remove_dir_all(temp_dir);
     }

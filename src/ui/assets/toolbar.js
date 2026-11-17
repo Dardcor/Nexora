@@ -39,12 +39,17 @@
     const shieldCount = document.getElementById('shield-count');
     const btnProfile = document.getElementById('btn-profile');
     const profilePopup = document.getElementById('profile-popup');
+    const toolbarAvatarCircle = document.getElementById('toolbar-avatar-circle');
+    const toolbarAvatarSvg = document.getElementById('toolbar-avatar-svg');
     const toolbarAvatarInitial = document.getElementById('toolbar-avatar-initial');
     const popupAvatarCircle = document.getElementById('popup-avatar-circle');
+    const popupAvatarSvg = document.getElementById('popup-avatar-svg');
     const popupAvatarInitial = document.getElementById('popup-avatar-initial');
     const popupProfileBadge = document.getElementById('popup-profile-badge');
     const popupProfileName = document.getElementById('popup-profile-name');
     const popupProfileEmail = document.getElementById('popup-profile-email');
+    const profBtnSignin = document.getElementById('prof-btn-signin');
+    const profileOtherSection = document.getElementById('profile-other-section');
     const profileOtherList = document.getElementById('profile-other-list');
     const profBtnPasswords = document.getElementById('prof-btn-passwords');
     const profBtnGoogle = document.getElementById('prof-btn-google');
@@ -514,6 +519,13 @@
         }
     });
 
+    if (profBtnSignin) {
+        profBtnSignin.addEventListener('click', () => {
+            closeOverlays();
+            createNewTab('https://accounts.google.com', 'Google Sign-In');
+        });
+    }
+
     profBtnPasswords.addEventListener('click', () => {
         closeOverlays();
         sendIpc({ type: 'navigate', url: 'nexora://settings' });
@@ -526,14 +538,15 @@
 
     profBtnCustomize.addEventListener('click', () => {
         closeOverlays();
-        const newName = prompt('Enter new profile name:', state.activeProfile ? state.activeProfile.name : 'Dard');
+        const currentName = state.activeProfile ? state.activeProfile.name : 'Person 1';
+        const newName = prompt('Enter profile name:', currentName);
         if (newName && newName.trim()) {
             sendIpc({
                 type: 'add_profile',
                 name: newName.trim(),
                 email: state.activeProfile ? state.activeProfile.email : '',
-                badge: 'Pro',
-                color: '#4285f4'
+                badge: state.activeProfile ? state.activeProfile.badge : '',
+                color: state.activeProfile ? state.activeProfile.color : '#5865f2'
             });
         }
     });
@@ -545,9 +558,7 @@
 
     profBtnSignout.addEventListener('click', () => {
         closeOverlays();
-        if (state.profiles.length > 0) {
-            sendIpc({ type: 'switch_profile', id: state.profiles[0].id });
-        }
+        sendIpc({ type: 'sign_out' });
     });
 
     profBtnAdd.addEventListener('click', () => {
@@ -557,9 +568,9 @@
             sendIpc({
                 type: 'add_profile',
                 name: name.trim(),
-                email: `${name.trim().toLowerCase()}@nexora.local`,
+                email: '',
                 badge: '',
-                color: '#34a853'
+                color: '#4285f4'
             });
         }
     });
@@ -798,38 +809,76 @@
         state.profiles = profiles;
         state.activeProfile = profiles.find(p => p.is_active) || profiles[0];
 
-        if (toolbarAvatarInitial && state.activeProfile) {
-            const initial = (state.activeProfile.name || 'D').charAt(0).toUpperCase();
-            toolbarAvatarInitial.textContent = initial;
-            if (state.activeProfile.color) {
-                toolbarAvatarInitial.parentElement.style.background = state.activeProfile.color;
+        const hasEmail = !!(state.activeProfile.email && state.activeProfile.email.trim());
+
+        if (toolbarAvatarInitial && toolbarAvatarSvg) {
+            if (hasEmail) {
+                const initial = (state.activeProfile.name || 'U').charAt(0).toUpperCase();
+                toolbarAvatarInitial.textContent = initial;
+                toolbarAvatarInitial.style.display = 'block';
+                toolbarAvatarSvg.style.display = 'none';
+                if (state.activeProfile.color) {
+                    toolbarAvatarInitial.parentElement.style.background = state.activeProfile.color;
+                }
+            } else {
+                toolbarAvatarInitial.style.display = 'none';
+                toolbarAvatarSvg.style.display = 'block';
+                toolbarAvatarInitial.parentElement.style.background = '#3c4043';
             }
         }
 
-        if (popupAvatarInitial && state.activeProfile) {
-            const initial = (state.activeProfile.name || 'D').charAt(0).toUpperCase();
-            popupAvatarInitial.textContent = initial;
-            if (state.activeProfile.color) {
-                popupAvatarCircle.style.background = state.activeProfile.color;
+        if (popupAvatarInitial && popupAvatarSvg) {
+            if (hasEmail) {
+                const initial = (state.activeProfile.name || 'U').charAt(0).toUpperCase();
+                popupAvatarInitial.textContent = initial;
+                popupAvatarInitial.style.display = 'block';
+                popupAvatarSvg.style.display = 'none';
+                if (state.activeProfile.color) {
+                    popupAvatarCircle.style.background = state.activeProfile.color;
+                }
+            } else {
+                popupAvatarInitial.style.display = 'none';
+                popupAvatarSvg.style.display = 'block';
+                popupAvatarCircle.style.background = '#3c4043';
             }
         }
 
-        if (popupProfileName && state.activeProfile) {
-            popupProfileName.textContent = state.activeProfile.name;
+        if (popupProfileName) {
+            popupProfileName.textContent = state.activeProfile.name || 'Person 1';
         }
 
-        if (popupProfileEmail && state.activeProfile) {
-            popupProfileEmail.textContent = state.activeProfile.email;
+        if (popupProfileEmail) {
+            popupProfileEmail.textContent = hasEmail ? state.activeProfile.email : 'Not signed in';
         }
 
-        if (popupProfileBadge && state.activeProfile) {
-            popupProfileBadge.textContent = state.activeProfile.badge || 'Pro';
-            popupProfileBadge.style.display = state.activeProfile.badge ? 'block' : 'none';
+        if (popupProfileBadge) {
+            if (hasEmail && state.activeProfile.badge) {
+                popupProfileBadge.textContent = state.activeProfile.badge;
+                popupProfileBadge.style.display = 'block';
+            } else {
+                popupProfileBadge.style.display = 'none';
+            }
+        }
+
+        if (profBtnSignin) {
+            profBtnSignin.style.display = hasEmail ? 'none' : 'flex';
+        }
+
+        if (profBtnGoogle) {
+            profBtnGoogle.style.display = hasEmail ? 'flex' : 'none';
+        }
+
+        if (profBtnSignout) {
+            profBtnSignout.style.display = hasEmail ? 'flex' : 'none';
+        }
+
+        const others = profiles.filter(p => p.id !== state.activeProfile.id);
+        if (profileOtherSection) {
+            profileOtherSection.style.display = others.length > 0 ? 'block' : 'none';
         }
 
         if (profileOtherList) {
             profileOtherList.innerHTML = '';
-            const others = profiles.filter(p => p.id !== state.activeProfile.id);
             others.forEach(p => {
                 const row = document.createElement('div');
                 row.className = 'profile-item-row';
