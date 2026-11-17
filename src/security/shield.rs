@@ -1,5 +1,5 @@
 use std::collections::HashSet;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use url::Url;
 
 /// High-performance Ad & Tracker Shield Engine written in pure safe Rust.
@@ -8,7 +8,7 @@ pub struct NexoraShield {
     blocked_patterns: Vec<String>,
     pub blocked_count: AtomicUsize,
     pub data_saved_est_bytes: AtomicUsize,
-    pub is_enabled: bool,
+    pub is_enabled: AtomicBool,
 }
 
 impl NexoraShield {
@@ -18,11 +18,19 @@ impl NexoraShield {
             blocked_patterns: Vec::with_capacity(64),
             blocked_count: AtomicUsize::new(0),
             data_saved_est_bytes: AtomicUsize::new(0),
-            is_enabled: true,
+            is_enabled: AtomicBool::new(true),
         };
 
         shield.load_default_filter_rules();
         shield
+    }
+
+    pub fn set_enabled(&self, enabled: bool) {
+        self.is_enabled.store(enabled, Ordering::Relaxed);
+    }
+
+    pub fn is_enabled(&self) -> bool {
+        self.is_enabled.load(Ordering::Relaxed)
     }
 
     /// Pre-loads high-impact ad, tracking, and telemetry domains.
@@ -99,7 +107,7 @@ impl NexoraShield {
 
     /// Evaluates if a given URL should be blocked.
     pub fn should_block(&self, url_str: &str) -> bool {
-        if !self.is_enabled {
+        if !self.is_enabled.load(Ordering::Relaxed) {
             return false;
         }
 

@@ -38,6 +38,51 @@ impl AntiFingerprint {
                     });
                 };
             }
+
+            // 3. Global Browser Keyboard Shortcut Forwarding
+            window.addEventListener('keydown', function(e) {
+                if (!window.ipc) return;
+                const key = (e.key || '').toLowerCase();
+                let action = null;
+
+                if (e.key === 'F5' && !e.ctrlKey && !e.altKey) {
+                    action = 'reload';
+                } else if (e.key === 'F11' && !e.ctrlKey && !e.altKey) {
+                    action = 'fullscreen';
+                } else if (e.ctrlKey && !e.altKey && (e.key === '+' || e.key === '=')) {
+                    action = 'zoom_in';
+                } else if (e.ctrlKey && e.shiftKey && !e.altKey) {
+                    if (key === 'n') action = 'new_incognito_window';
+                    else if (key === 't') action = 'reopen_closed_tab';
+                    else if (key === 'o') action = 'bookmarks';
+                } else if (e.ctrlKey && !e.shiftKey && !e.altKey) {
+                    if (key === 't') action = 'new_tab';
+                    else if (key === 'n') action = 'new_window';
+                    else if (key === 'w') action = 'close_tab';
+                    else if (key === 'l') action = 'focus_omnibox';
+                    else if (key === 'r') action = 'reload';
+                    else if (key === 'h') action = 'history';
+                    else if (key === 'j') action = 'downloads';
+                    else if (key === 'f') action = 'find_in_page';
+                    else if (key === 'p') action = 'print';
+                    else if (e.key === '-') action = 'zoom_out';
+                    else if (e.key === '0') action = 'zoom_reset';
+                } else if (e.altKey && !e.ctrlKey && !e.shiftKey) {
+                    if (e.key === 'ArrowLeft') action = 'go_back';
+                    else if (e.key === 'ArrowRight') action = 'go_forward';
+                    else if (key === 'r') action = 'reader_mode';
+                    else if (key === 'f' || key === 'e') action = 'open_more_menu';
+                }
+
+                if (action) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    window.ipc.postMessage(JSON.stringify({
+                        type: 'shortcut',
+                        action: action
+                    }));
+                }
+            }, true);
         })();
         "#
     }

@@ -1,3 +1,5 @@
+#![cfg_attr(target_os = "windows", windows_subsystem = "windows")]
+
 use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -38,6 +40,7 @@ extern "system" {
     ) -> i32;
     fn LoadLibraryA(lpfilename: *const u8) -> isize;
     fn GetProcAddress(hmodule: isize, lpprocname: *const u8) -> usize;
+    fn SetCurrentProcessExplicitAppUserModelID(app_id: *const u16) -> i32;
 }
 
 #[cfg(target_os = "windows")]
@@ -63,6 +66,29 @@ fn enable_windows_dark_mode() {
                 set_preferred_app_mode(2);
             }
         }
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn set_app_user_model_id() {
+    unsafe {
+        let app_id: Vec<u16> = "Dardcor.Nexora.Browser\0".encode_utf16().collect();
+        let _ = SetCurrentProcessExplicitAppUserModelID(app_id.as_ptr());
+    }
+}
+
+fn spawn_new_window(incognito: bool) {
+    if let Ok(exe) = std::env::current_exe() {
+        let mut cmd = std::process::Command::new(exe);
+        if incognito {
+            cmd.arg("--incognito");
+        }
+        #[cfg(target_os = "windows")]
+        {
+            use std::os::windows::process::CommandExt;
+            cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+        }
+        let _ = cmd.spawn();
     }
 }
 
@@ -95,6 +121,7 @@ fn show_native_more_menu(hwnd: isize, scale_factor: f64) -> Option<u32> {
 
         add_item(1, "New Tab\tCtrl+T");
         add_item(2, "New Window\tCtrl+N");
+        add_item(12, "New Incognito Window\tCtrl+Shift+N");
         add_separator();
         add_item(3, "History\tCtrl+H");
         add_item(4, "Bookmarks\tCtrl+Shift+O");
@@ -103,6 +130,11 @@ fn show_native_more_menu(hwnd: isize, scale_factor: f64) -> Option<u32> {
         add_item(6, "Zoom In (+10%)\tCtrl++");
         add_item(7, "Zoom Out (-10%)\tCtrl+-");
         add_item(8, "Reset Zoom (100%)\tCtrl+0");
+        add_separator();
+        add_item(13, "Find in Page...\tCtrl+F");
+        add_item(14, "Toggle Reader Mode\tAlt+R");
+        add_item(15, "Print...\tCtrl+P");
+        add_item(16, "Fullscreen\tF11");
         add_separator();
         add_item(9, "Settings");
         add_item(10, "About Nexora");
@@ -136,12 +168,72 @@ fn show_native_more_menu(hwnd: isize, scale_factor: f64) -> Option<u32> {
         }
     }
 }
+
+#[cfg(target_os = "windows")]
+fn show_native_tab_context_menu(hwnd: isize, screen_x: i32, screen_y: i32) -> Option<u32> {
+    const MF_STRING: u32 = 0x00000000;
+    const MF_SEPARATOR: u32 = 0x00000800;
+    const TPM_LEFTALIGN: u32 = 0x0000;
+    const TPM_TOPALIGN: u32 = 0x0000;
+    const TPM_RETURNCMD: u32 = 0x0100;
+    const TPM_NONOTIFY: u32 = 0x0080;
+
+    fn to_wide(s: &str) -> Vec<u16> {
+        s.encode_utf16().chain(std::iter::once(0)).collect()
+    }
+
+    unsafe {
+        let hmenu = CreatePopupMenu();
+        if hmenu == 0 {
+            return None;
+        }
+
+        let add_item = |id: usize, text: &str| {
+            let wide = to_wide(text);
+            AppendMenuW(hmenu, MF_STRING, id, wide.as_ptr());
+        };
+        let add_separator = || {
+            AppendMenuW(hmenu, MF_SEPARATOR, 0, std::ptr::null());
+        };
+
+        add_item(1, "New Tab to the Right\tCtrl+T");
+        add_item(2, "Duplicate Tab");
+        add_item(3, "Reload Tab\tCtrl+R");
+        add_item(4, "Pin Tab");
+        add_separator();
+        add_item(5, "Close Tab\tCtrl+W");
+        add_item(6, "Close Other Tabs");
+        add_item(7, "Close Tabs to the Right");
+
+        SetForegroundWindow(hwnd);
+
+        let cmd = TrackPopupMenu(
+            hmenu,
+            TPM_LEFTALIGN | TPM_TOPALIGN | TPM_RETURNCMD | TPM_NONOTIFY,
+            screen_x,
+            screen_y,
+            0,
+            hwnd,
+            std::ptr::null(),
+        );
+
+        DestroyMenu(hmenu);
+
+        if cmd > 0 {
+            Some(cmd as u32)
+        } else {
+            None
+        }
+    }
+}
+
 use wry::{
     dpi::{PhysicalPosition, PhysicalSize},
     Rect, WebViewBuilder,
 };
 
 use nexora::app::NexoraApp;
+use nexora::engine::NanoReader;
 use nexora::security::AntiFingerprint;
 use nexora::ui::NexoraUiAssets;
 
@@ -169,7 +261,7 @@ pub enum BrowserAction {
     TabLoadFinished { tab_id: String, url: String },
     TabTitleChanged { tab_id: String, title: String },
     ContentIpc { tab_id: String, body: String },
-    // Bookmarks and Omnibox
+    // Bookmarks, Omnibox, and UI Features
     ToggleBookmark { url: String, title: String },
     OmniboxQuery(String),
     ExpandOverlay(f64),
@@ -177,6 +269,12 @@ pub enum BrowserAction {
     SetZoom(u32),
     OpenMoreMenu,
     ReopenClosedTab,
+    OpenTabContextMenu { tab_id: String, screen_x: i32, screen_y: i32 },
+    ToggleReaderMode,
+    FindInPage { query: String, forward: bool },
+    StopFind,
+    PrintPage,
+    ToggleFullscreen,
 }
 
 /// Helper function to create an isolated, dedicated child WebView for any browser tab.
@@ -187,6 +285,7 @@ fn create_tab_webview(
     bounds: Rect,
     proxy: EventLoopProxy<BrowserAction>,
     security: Arc<nexora::security::NexoraSecurityManager>,
+    db: Arc<nexora::vault::NexoraDatabase>,
 ) -> Result<wry::WebView, Box<dyn std::error::Error>> {
     let stealth_script = AntiFingerprint::get_stealth_injection_script();
 
@@ -203,18 +302,58 @@ fn create_tab_webview(
     let proxy_ipc = proxy.clone();
     let tab_id_ipc = tab_id.to_string();
 
+    let db_start = Arc::clone(&db);
+    let db_finish = Arc::clone(&db);
+
     let mut builder = WebViewBuilder::new()
         .with_bounds(bounds)
         .with_user_agent(DESKTOP_USER_AGENT)
         .with_devtools(true)
         .with_initialization_script(stealth_script)
+        .with_download_started_handler(move |url: String, path: &mut std::path::PathBuf| -> bool {
+            let default_dir = directories::UserDirs::new()
+                .and_then(|u| u.download_dir().map(|p| p.to_path_buf()))
+                .unwrap_or_else(std::env::temp_dir);
+
+            let filename = path
+                .file_name()
+                .map(|f| f.to_string_lossy().to_string())
+                .unwrap_or_else(|| {
+                    url::Url::parse(&url)
+                        .ok()
+                        .and_then(|u| {
+                            u.path_segments()
+                                .and_then(|mut segs| segs.next_back())
+                                .map(|s| s.to_string())
+                        })
+                        .filter(|s| !s.is_empty())
+                        .unwrap_or_else(|| "downloaded_file".to_string())
+                });
+
+            let target_path = default_dir.join(&filename);
+            *path = target_path.clone();
+
+            let id = uuid::Uuid::new_v4().to_string();
+            let _ = db_start.record_download(
+                &id,
+                &filename,
+                &url,
+                &target_path.to_string_lossy(),
+                "downloading",
+            );
+            true
+        })
+        .with_download_completed_handler(move |_url: String, path: Option<std::path::PathBuf>, success: bool| {
+            if let Some(p) = path {
+                let status = if success { "completed" } else { "failed" };
+                let size = std::fs::metadata(&p).map(|m| m.len() as i64).unwrap_or(0);
+                let _ = db_finish.update_download_status(&p.to_string_lossy(), status, size);
+            }
+        })
         .with_navigation_handler(move |url: String| -> bool {
             if url.starts_with("nexora://") {
-                let _ = proxy_nav.send_event(BrowserAction::TabNavigated {
-                    tab_id: tab_id_nav.clone(),
-                    url,
-                });
-                return true;
+                let _ = proxy_nav.send_event(BrowserAction::Navigate(url));
+                return false;
             }
 
             let (should_allow, cleaned_url) = if security_nav.shield.should_block(&url) {
@@ -282,9 +421,13 @@ fn create_tab_webview(
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(target_os = "windows")]
-    enable_windows_dark_mode();
+    {
+        enable_windows_dark_mode();
+        set_app_user_model_id();
+    }
 
-    let app = Arc::new(NexoraApp::new()?);
+    let is_incognito = std::env::args().any(|a| a == "--incognito");
+    let app = Arc::new(NexoraApp::new_with_mode(is_incognito)?);
 
     let event_loop = EventLoopBuilder::<BrowserAction>::with_user_event().build();
     let proxy: EventLoopProxy<BrowserAction> = event_loop.create_proxy();
@@ -292,9 +435,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let icon_bytes = include_bytes!("../assets/icon-32.rgba");
     let window_icon = tao::window::Icon::from_rgba(icon_bytes.to_vec(), 32, 32).ok();
 
+    let win_title = if is_incognito {
+        "Nexora (Incognito)"
+    } else {
+        "Nexora"
+    };
+
     #[cfg(target_os = "windows")]
     let builder = WindowBuilder::new()
-        .with_title("Nexora")
+        .with_title(win_title)
         .with_window_icon(window_icon)
         .with_decorations(false)
         .with_undecorated_shadow(true)
@@ -304,7 +453,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     #[cfg(not(target_os = "windows"))]
     let builder = WindowBuilder::new()
-        .with_title("Nexora")
+        .with_title(win_title)
         .with_window_icon(window_icon)
         .with_decorations(false)
         .with_resizable(true)
@@ -312,7 +461,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_min_inner_size(tao::dpi::LogicalSize::new(600.0, 400.0));
 
     let window = builder.build(&event_loop)?;
-
 
     let scale_factor = window.scale_factor();
     let initial_physical = window.inner_size();
@@ -359,6 +507,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         "new_tab" => {
                             let id = v.get("id").and_then(|i| i.as_str()).unwrap_or("tab-1");
                             let _ = proxy_toolbar.send_event(BrowserAction::NewTab(id.to_string()));
+                        }
+                        "new_window" => {
+                            spawn_new_window(false);
+                        }
+                        "new_incognito" => {
+                            spawn_new_window(true);
                         }
                         "close_tab" => {
                             if let Some(id) = v.get("id").and_then(|i| i.as_str()) {
@@ -409,6 +563,27 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         "reopen_closed_tab" => {
                             let _ = proxy_toolbar.send_event(BrowserAction::ReopenClosedTab);
                         }
+                        "tab_context_menu" => {
+                            let tab_id = v.get("tab_id").and_then(|i| i.as_str()).unwrap_or("").to_string();
+                            let sx = v.get("screen_x").and_then(|x| x.as_i64()).unwrap_or(0) as i32;
+                            let sy = v.get("screen_y").and_then(|y| y.as_i64()).unwrap_or(0) as i32;
+                            let _ = proxy_toolbar.send_event(BrowserAction::OpenTabContextMenu {
+                                tab_id,
+                                screen_x: sx,
+                                screen_y: sy,
+                            });
+                        }
+                        "toggle_reader" => {
+                            let _ = proxy_toolbar.send_event(BrowserAction::ToggleReaderMode);
+                        }
+                        "find_in_page" => {
+                            let q = v.get("query").and_then(|s| s.as_str()).unwrap_or("").to_string();
+                            let forward = v.get("forward").and_then(|b| b.as_bool()).unwrap_or(true);
+                            let _ = proxy_toolbar.send_event(BrowserAction::FindInPage { query: q, forward });
+                        }
+                        "stop_find" => {
+                            let _ = proxy_toolbar.send_event(BrowserAction::StopFind);
+                        }
                         _ => {}
                     }
                 }
@@ -437,8 +612,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
+    // If incognito mode, notify toolbar UI
+    if is_incognito {
+        let _ = toolbar_webview.evaluate_script("if (window.__nexora_set_incognito) window.__nexora_set_incognito(true);");
+    }
+
+    // Synchronize initial settings to toolbar UI
+    let current_engine = app.db.get_setting("search_engine", "google");
+    let init_settings_script = format!(
+        "if (window.__nexora_update_settings) window.__nexora_update_settings({{ search_engine: {:?} }});",
+        current_engine
+    );
+    let _ = toolbar_webview.evaluate_script(&init_settings_script);
+
     // 2. Multi-Tab Dedicated WebViews Map
     let mut tab_webviews: HashMap<String, wry::WebView> = HashMap::new();
+    let mut tab_urls: HashMap<String, String> = HashMap::new();
     let mut active_tab_id: String = "tab-1".to_string();
     let mut closed_tabs: Vec<(String, String)> = Vec::new();
 
@@ -449,8 +638,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         content_bounds,
         proxy.clone(),
         Arc::clone(&app.security),
+        Arc::clone(&app.db),
     )?;
     let _ = initial_wv.set_visible(true);
+    tab_urls.insert(active_tab_id.clone(), "nexora://home".to_string());
     tab_webviews.insert(active_tab_id.clone(), initial_wv);
     bring_toolbar_to_top();
 
@@ -468,6 +659,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             Event::UserEvent(action) => {
                 match action {
                     BrowserAction::Navigate(url) => {
+                        tab_urls.insert(active_tab_id.clone(), url.clone());
+
                         if let Some(active_wv) = tab_webviews.get(&active_tab_id) {
                             if url.starts_with("nexora://") || url.is_empty() {
                                 match url.as_str() {
@@ -487,12 +680,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                         let _ = active_wv.load_html(NexoraUiAssets::get_standalone_home_html());
                                     }
                                 }
-                            } else {
-                                if let Some(cleaned) = app.security.inspect_and_filter_url(&url) {
-                                    let _ = active_wv.load_url(&cleaned);
-                                    app.vault.record_visit(cleaned.clone(), url.clone(), "default".to_string());
-                                    let _ = app.db.record_visit(&cleaned, &url, "default");
-                                }
+                                let update_script = format!("if (window.__nexora_update_url) window.__nexora_update_url({:?});", url);
+                                let _ = toolbar_webview.evaluate_script(&update_script);
+                            } else if let Some(cleaned) = app.security.inspect_and_filter_url(&url) {
+                                let _ = active_wv.load_url(&cleaned);
+                                app.vault.record_visit(cleaned.clone(), url.clone(), "default".to_string());
+                                let _ = app.db.record_visit(&cleaned, &url, "default");
                             }
                         }
                     }
@@ -512,7 +705,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
                     }
                     BrowserAction::NewTab(id) => {
-                        // Hide current active tab webview
                         if let Some(prev_wv) = tab_webviews.get(&active_tab_id) {
                             let _ = prev_wv.set_visible(false);
                         }
@@ -524,17 +716,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             content_bounds,
                             proxy.clone(),
                             Arc::clone(&app.security),
+                            Arc::clone(&app.db),
                         ) {
                             Ok(new_wv) => {
                                 let _ = new_wv.set_visible(true);
+                                tab_urls.insert(id.clone(), "nexora://home".to_string());
                                 tab_webviews.insert(id.clone(), new_wv);
                                 active_tab_id = id.clone();
                                 let _ = app.create_tab("nexora://home".into(), "Nexora Home".into(), "default".into());
                                 bring_toolbar_to_top();
 
-                                // Reset omnibox and bookmark star
-                                let _ = toolbar_webview.evaluate_script("if (window.__nexora_update_url) window.__nexora_update_url('');");
+                                let _ = toolbar_webview.evaluate_script("if (window.__nexora_update_url) window.__nexora_update_url('nexora://home');");
                                 let _ = toolbar_webview.evaluate_script("if (window.__nexora_set_bookmarked) window.__nexora_set_bookmarked(false);");
+                                let _ = toolbar_webview.evaluate_script("if (window.__nexora_set_reader_mode) window.__nexora_set_reader_mode(false);");
                             }
                             Err(e) => {
                                 eprintln!("Failed to create tab webview: {}", e);
@@ -551,12 +745,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 let _ = curr_wv.set_visible(true);
                                 let _ = curr_wv.set_bounds(content_bounds);
 
-                                // Check bookmark status of current tab
-                                if let Ok(url) = curr_wv.url() {
-                                    let is_bm = app.db.is_bookmarked(&url);
-                                    let bm_script = format!("if (window.__nexora_set_bookmarked) window.__nexora_set_bookmarked({});", is_bm);
-                                    let _ = toolbar_webview.evaluate_script(&bm_script);
-                                }
+                                let logical_url = tab_urls.get(&id).cloned().unwrap_or_else(|| {
+                                    curr_wv.url().unwrap_or_default()
+                                });
+
+                                let is_bm = app.db.is_bookmarked(&logical_url);
+                                let bm_script = format!("if (window.__nexora_set_bookmarked) window.__nexora_set_bookmarked({});", is_bm);
+                                let _ = toolbar_webview.evaluate_script(&bm_script);
                             }
 
                             active_tab_id = id.clone();
@@ -566,13 +761,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                     BrowserAction::CloseTab(id) => {
                         if let Some(wv) = tab_webviews.get(&id) {
-                            if let Ok(url) = wv.url() {
-                                if !url.is_empty() && !url.starts_with("nexora://") {
-                                    closed_tabs.push((url, "Closed Tab".to_string()));
-                                }
+                            let url = tab_urls.get(&id).cloned().unwrap_or_else(|| wv.url().unwrap_or_default());
+                            if !url.is_empty() && !url.starts_with("nexora://") {
+                                closed_tabs.push((url, "Closed Tab".to_string()));
                             }
                         }
                         tab_webviews.remove(&id);
+                        tab_urls.remove(&id);
                         app.close_tab(&id);
 
                         if active_tab_id == id {
@@ -597,9 +792,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 content_bounds,
                                 proxy.clone(),
                                 Arc::clone(&app.security),
+                                Arc::clone(&app.db),
                             ) {
                                 Ok(new_wv) => {
                                     let _ = new_wv.set_visible(true);
+                                    tab_urls.insert(new_id.clone(), url.clone());
                                     tab_webviews.insert(new_id.clone(), new_wv);
                                     active_tab_id = new_id.clone();
                                     let _ = app.create_tab(url.clone(), title.clone(), "default".into());
@@ -618,11 +815,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
                     }
                     BrowserAction::TabNavigated { tab_id, url } => {
+                        let effective_url = if url.is_empty() || url == "about:blank" {
+                            tab_urls.get(&tab_id).cloned().unwrap_or(url)
+                        } else {
+                            tab_urls.insert(tab_id.clone(), url.clone());
+                            url
+                        };
+
                         if tab_id == active_tab_id {
-                            let script = format!("if (window.__nexora_update_url) window.__nexora_update_url({:?});", url);
+                            let script = format!("if (window.__nexora_update_url) window.__nexora_update_url({:?});", effective_url);
                             let _ = toolbar_webview.evaluate_script(&script);
 
-                            let is_bm = app.db.is_bookmarked(&url);
+                            let is_bm = app.db.is_bookmarked(&effective_url);
                             let bm_script = format!("if (window.__nexora_set_bookmarked) window.__nexora_set_bookmarked({});", is_bm);
                             let _ = toolbar_webview.evaluate_script(&bm_script);
 
@@ -630,37 +834,46 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
                     }
                     BrowserAction::TabLoadFinished { tab_id, url } => {
+                        let effective_url = if url.is_empty() || url == "about:blank" {
+                            tab_urls.get(&tab_id).cloned().unwrap_or(url)
+                        } else {
+                            tab_urls.insert(tab_id.clone(), url.clone());
+                            url
+                        };
+
                         if tab_id == active_tab_id {
-                            let script = format!("if (window.__nexora_update_url) window.__nexora_update_url({:?});", url);
+                            let script = format!("if (window.__nexora_update_url) window.__nexora_update_url({:?});", effective_url);
                             let _ = toolbar_webview.evaluate_script(&script);
 
-                            let is_bm = app.db.is_bookmarked(&url);
+                            let is_bm = app.db.is_bookmarked(&effective_url);
                             let bm_script = format!("if (window.__nexora_set_bookmarked) window.__nexora_set_bookmarked({});", is_bm);
                             let _ = toolbar_webview.evaluate_script(&bm_script);
 
                             let _ = toolbar_webview.evaluate_script("if (window.__nexora_page_loading) window.__nexora_page_loading(false);");
                         }
 
-                        // Evaluate favicon extraction script on the loaded tab webview
-                        if let Some(wv) = tab_webviews.get(&tab_id) {
-                            let favicon_script = r#"
-                                (function() {
-                                    try {
-                                        let link = document.querySelector('link[rel~="icon"]') || 
-                                                   document.querySelector('link[rel="shortcut icon"]') || 
-                                                   document.querySelector('link[rel*="icon"]') || 
-                                                   document.querySelector('link[rel="apple-touch-icon"]');
-                                        let iconUrl = link && link.href ? link.href : (window.location.origin + '/favicon.ico');
-                                        if (window.ipc) {
-                                            window.ipc.postMessage(JSON.stringify({
-                                                type: 'page_favicon',
-                                                favicon: iconUrl
-                                            }));
-                                        }
-                                    } catch(e) {}
-                                })();
-                            "#;
-                            let _ = wv.evaluate_script(favicon_script);
+                        // Only evaluate dynamic favicon extraction script for external HTTP/HTTPS websites
+                        if effective_url.starts_with("http://") || effective_url.starts_with("https://") {
+                            if let Some(wv) = tab_webviews.get(&tab_id) {
+                                let favicon_script = r#"
+                                    (function() {
+                                        try {
+                                            let link = document.querySelector('link[rel~="icon"]') || 
+                                                       document.querySelector('link[rel="shortcut icon"]') || 
+                                                       document.querySelector('link[rel*="icon"]') || 
+                                                       document.querySelector('link[rel="apple-touch-icon"]');
+                                            let iconUrl = link && link.href ? link.href : (window.location.origin + '/favicon.ico');
+                                            if (window.ipc) {
+                                                window.ipc.postMessage(JSON.stringify({
+                                                    type: 'page_favicon',
+                                                    favicon: iconUrl
+                                                }));
+                                            }
+                                        } catch(e) {}
+                                    })();
+                                "#;
+                                let _ = wv.evaluate_script(favicon_script);
+                            }
                         }
                     }
                     BrowserAction::TabTitleChanged { tab_id, title } => {
@@ -670,11 +883,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         );
                         let _ = toolbar_webview.evaluate_script(&script);
 
-                        if let Some(wv) = tab_webviews.get(&tab_id) {
-                            if let Ok(url) = wv.url() {
-                                if !url.is_empty() && !url.starts_with("nexora://") {
-                                    let _ = app.db.record_visit(&url, &title, "default");
-                                }
+                        if let Some(url) = tab_urls.get(&tab_id) {
+                            if !url.is_empty() && !url.starts_with("nexora://") {
+                                let _ = app.db.record_visit(url, &title, "default");
                             }
                         }
                     }
@@ -737,13 +948,53 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     "set_setting" => {
                                         if let (Some(k), Some(val)) = (v.get("key").and_then(|k| k.as_str()), v.get("value").and_then(|val| val.as_str())) {
                                             let _ = app.db.set_setting(k, val);
+                                            if k == "search_engine" {
+                                                let update_script = format!(
+                                                    "if (window.__nexora_update_settings) window.__nexora_update_settings({{ search_engine: {:?} }});",
+                                                    val
+                                                );
+                                                let _ = toolbar_webview.evaluate_script(&update_script);
+                                            }
+                                        }
+                                    }
+                                    "get_downloads" => {
+                                        let downloads = app.db.get_downloads().unwrap_or_default();
+                                        if let Ok(json) = serde_json::to_string(&downloads) {
+                                            if let Some(wv) = tab_webviews.get(&tab_id) {
+                                                let script = format!("if (window.__nexora_render_downloads) window.__nexora_render_downloads({});", json);
+                                                let _ = wv.evaluate_script(&script);
+                                            }
+                                        }
+                                    }
+                                    "clear_downloads" => {
+                                        let _ = app.db.clear_downloads();
+                                    }
+                                    "open_downloads_folder" => {
+                                        let default_dir = directories::UserDirs::new()
+                                            .and_then(|u| u.download_dir().map(|p| p.to_path_buf()))
+                                            .unwrap_or_else(std::env::temp_dir);
+                                        let _ = std::process::Command::new("explorer.exe").arg(default_dir).spawn();
+                                    }
+                                    "open_file" => {
+                                        if let Some(path) = v.get("path").and_then(|p| p.as_str()) {
+                                            let _ = std::process::Command::new("explorer.exe").arg(path).spawn();
+                                        }
+                                    }
+                                    "activate_reader_mode" => {
+                                        if let (Some(html), Some(source_url)) = (
+                                            v.get("html").and_then(|h| h.as_str()),
+                                            v.get("url").and_then(|u| u.as_str()),
+                                        ) {
+                                            let reader_html = NanoReader::format_reader_view(html, source_url);
+                                            if let Some(wv) = tab_webviews.get(&tab_id) {
+                                                let _ = wv.load_html(&reader_html);
+                                                let _ = toolbar_webview.evaluate_script("if (window.__nexora_set_reader_mode) window.__nexora_set_reader_mode(true);");
+                                            }
                                         }
                                     }
                                     "navigate" => {
                                         if let Some(url) = v.get("url").and_then(|u| u.as_str()) {
                                             let _ = proxy.send_event(BrowserAction::Navigate(url.to_string()));
-                                            let script = format!("if (window.__nexora_update_url) window.__nexora_update_url({:?});", url);
-                                            let _ = toolbar_webview.evaluate_script(&script);
                                         }
                                     }
                                     "page_favicon" => {
@@ -753,6 +1004,64 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                                 tab_id, favicon
                                             );
                                             let _ = toolbar_webview.evaluate_script(&script);
+                                        }
+                                    }
+                                    "shortcut" => {
+                                        if let Some(action) = v.get("action").and_then(|a| a.as_str()) {
+                                            match action {
+                                                "new_tab" => {
+                                                    let _ = toolbar_webview.evaluate_script("if (window.__nexora_create_new_tab) window.__nexora_create_new_tab();");
+                                                }
+                                                "new_window" => {
+                                                    spawn_new_window(false);
+                                                }
+                                                "new_incognito" => {
+                                                    spawn_new_window(true);
+                                                }
+                                                "close_tab" => {
+                                                    let _ = toolbar_webview.evaluate_script("if (window.__nexora_close_active_tab) window.__nexora_close_active_tab();");
+                                                }
+                                                "reopen_closed_tab" => {
+                                                    let _ = proxy.send_event(BrowserAction::ReopenClosedTab);
+                                                }
+                                                "focus_omnibox" => {
+                                                    let _ = toolbar_webview.evaluate_script("if (window.__nexora_focus_omnibox) window.__nexora_focus_omnibox();");
+                                                }
+                                                "reload" => {
+                                                    let _ = proxy.send_event(BrowserAction::Reload);
+                                                }
+                                                "history" => {
+                                                    let _ = proxy.send_event(BrowserAction::Navigate("nexora://history".into()));
+                                                }
+                                                "downloads" => {
+                                                    let _ = proxy.send_event(BrowserAction::Navigate("nexora://downloads".into()));
+                                                }
+                                                "find_in_page" => {
+                                                    let _ = toolbar_webview.evaluate_script("if (window.__nexora_toggle_find_bar) window.__nexora_toggle_find_bar();");
+                                                }
+                                                "print" => {
+                                                    let _ = proxy.send_event(BrowserAction::PrintPage);
+                                                }
+                                                "fullscreen" => {
+                                                    let _ = proxy.send_event(BrowserAction::ToggleFullscreen);
+                                                }
+                                                "reader_mode" => {
+                                                    let _ = proxy.send_event(BrowserAction::ToggleReaderMode);
+                                                }
+                                                "more_menu" => {
+                                                    let _ = proxy.send_event(BrowserAction::OpenMoreMenu);
+                                                }
+                                                "zoom_in" => {
+                                                    let _ = toolbar_webview.evaluate_script("if (window.__nexora_zoom_in) window.__nexora_zoom_in();");
+                                                }
+                                                "zoom_out" => {
+                                                    let _ = toolbar_webview.evaluate_script("if (window.__nexora_zoom_out) window.__nexora_zoom_out();");
+                                                }
+                                                "zoom_reset" => {
+                                                    let _ = toolbar_webview.evaluate_script("if (window.__nexora_zoom_reset) window.__nexora_zoom_reset();");
+                                                }
+                                                _ => {}
+                                            }
                                         }
                                     }
                                     _ => {}
@@ -809,20 +1118,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             let sf = window.scale_factor();
                             if let Some(cmd) = show_native_more_menu(hwnd, sf) {
                                 match cmd {
-                                    1 | 2 => {
+                                    1 => {
                                         let _ = toolbar_webview.evaluate_script("if (window.__nexora_create_new_tab) window.__nexora_create_new_tab();");
+                                    }
+                                    2 => {
+                                        spawn_new_window(false);
+                                    }
+                                    12 => {
+                                        spawn_new_window(true);
                                     }
                                     3 => {
                                         let _ = proxy.send_event(BrowserAction::Navigate("nexora://history".into()));
-                                        let _ = toolbar_webview.evaluate_script("if (window.__nexora_update_url) window.__nexora_update_url('nexora://history');");
                                     }
                                     4 => {
                                         let _ = proxy.send_event(BrowserAction::Navigate("nexora://bookmarks".into()));
-                                        let _ = toolbar_webview.evaluate_script("if (window.__nexora_update_url) window.__nexora_update_url('nexora://bookmarks');");
                                     }
                                     5 => {
                                         let _ = proxy.send_event(BrowserAction::Navigate("nexora://downloads".into()));
-                                        let _ = toolbar_webview.evaluate_script("if (window.__nexora_update_url) window.__nexora_update_url('nexora://downloads');");
                                     }
                                     6 => {
                                         let _ = toolbar_webview.evaluate_script("if (window.__nexora_zoom_in) window.__nexora_zoom_in();");
@@ -833,9 +1145,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     8 => {
                                         let _ = toolbar_webview.evaluate_script("if (window.__nexora_zoom_reset) window.__nexora_zoom_reset();");
                                     }
+                                    13 => {
+                                        let _ = toolbar_webview.evaluate_script("if (window.__nexora_toggle_find_bar) window.__nexora_toggle_find_bar();");
+                                    }
+                                    14 => {
+                                        let _ = proxy.send_event(BrowserAction::ToggleReaderMode);
+                                    }
+                                    15 => {
+                                        let _ = proxy.send_event(BrowserAction::PrintPage);
+                                    }
+                                    16 => {
+                                        let _ = proxy.send_event(BrowserAction::ToggleFullscreen);
+                                    }
                                     9 | 10 => {
                                         let _ = proxy.send_event(BrowserAction::Navigate("nexora://settings".into()));
-                                        let _ = toolbar_webview.evaluate_script("if (window.__nexora_update_url) window.__nexora_update_url('nexora://settings');");
                                     }
                                     11 => {
                                         let _ = proxy.send_event(BrowserAction::CloseWindow);
@@ -848,6 +1171,93 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         #[cfg(not(target_os = "windows"))]
                         {
                             let _ = toolbar_webview.evaluate_script("if (window.__nexora_toggle_more_menu) window.__nexora_toggle_more_menu();");
+                        }
+                    }
+                    BrowserAction::OpenTabContextMenu { tab_id, screen_x, screen_y } => {
+                        #[cfg(target_os = "windows")]
+                        {
+                            let hwnd = window.hwnd() as isize;
+                            if let Some(cmd) = show_native_tab_context_menu(hwnd, screen_x, screen_y) {
+                                match cmd {
+                                    1 => {
+                                        let script = format!("if (window.__nexora_tab_context_action) window.__nexora_tab_context_action('new_tab', {:?});", tab_id);
+                                        let _ = toolbar_webview.evaluate_script(&script);
+                                    }
+                                    2 => {
+                                        let script = format!("if (window.__nexora_tab_context_action) window.__nexora_tab_context_action('duplicate', {:?});", tab_id);
+                                        let _ = toolbar_webview.evaluate_script(&script);
+                                    }
+                                    3 => {
+                                        let script = format!("if (window.__nexora_tab_context_action) window.__nexora_tab_context_action('reload', {:?});", tab_id);
+                                        let _ = toolbar_webview.evaluate_script(&script);
+                                    }
+                                    4 => {
+                                        let script = format!("if (window.__nexora_tab_context_action) window.__nexora_tab_context_action('pin', {:?});", tab_id);
+                                        let _ = toolbar_webview.evaluate_script(&script);
+                                    }
+                                    5 => {
+                                        let script = format!("if (window.__nexora_tab_context_action) window.__nexora_tab_context_action('close', {:?});", tab_id);
+                                        let _ = toolbar_webview.evaluate_script(&script);
+                                    }
+                                    6 => {
+                                        let script = format!("if (window.__nexora_tab_context_action) window.__nexora_tab_context_action('close_others', {:?});", tab_id);
+                                        let _ = toolbar_webview.evaluate_script(&script);
+                                    }
+                                    7 => {
+                                        let script = format!("if (window.__nexora_tab_context_action) window.__nexora_tab_context_action('close_right', {:?});", tab_id);
+                                        let _ = toolbar_webview.evaluate_script(&script);
+                                    }
+                                    _ => {}
+                                }
+                            }
+                        }
+                    }
+                    BrowserAction::ToggleReaderMode => {
+                        if let Some(active_wv) = tab_webviews.get(&active_tab_id) {
+                            let script = r#"
+                                (function() {
+                                    if (window.__is_reader_mode) {
+                                        window.location.reload();
+                                    } else {
+                                        let html = document.documentElement.outerHTML;
+                                        if (window.ipc) {
+                                            window.ipc.postMessage(JSON.stringify({
+                                                type: 'activate_reader_mode',
+                                                html: html,
+                                                url: window.location.href
+                                            }));
+                                        }
+                                    }
+                                })();
+                            "#;
+                            let _ = active_wv.evaluate_script(script);
+                        }
+                    }
+                    BrowserAction::FindInPage { query, forward } => {
+                        if let Some(active_wv) = tab_webviews.get(&active_tab_id) {
+                            let script = format!(
+                                "window.find({:?}, false, {}, true, false, false, false);",
+                                query, !forward
+                            );
+                            let _ = active_wv.evaluate_script(&script);
+                        }
+                    }
+                    BrowserAction::StopFind => {
+                        if let Some(active_wv) = tab_webviews.get(&active_tab_id) {
+                            let _ = active_wv.evaluate_script("if (window.getSelection) window.getSelection().removeAllRanges();");
+                        }
+                    }
+                    BrowserAction::PrintPage => {
+                        if let Some(active_wv) = tab_webviews.get(&active_tab_id) {
+                            let _ = active_wv.evaluate_script("window.print();");
+                        }
+                    }
+                    BrowserAction::ToggleFullscreen => {
+                        let is_fs = window.fullscreen().is_some();
+                        if is_fs {
+                            window.set_fullscreen(None);
+                        } else {
+                            window.set_fullscreen(Some(tao::window::Fullscreen::Borderless(None)));
                         }
                     }
                     BrowserAction::SetZoom(level) => {

@@ -13,6 +13,8 @@
             --text-primary: #f2f3f5;
             --text-secondary: #949ba4;
             --accent-blue: #5865f2;
+            --accent-green: #23a55a;
+            --accent-red: #da373c;
             --font-stack: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
         }
 
@@ -90,16 +92,46 @@
             max-width: 900px;
         }
 
+        .header-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1.5rem;
+            gap: 1rem;
+        }
+
         .page-title {
             font-size: 20px;
             font-weight: 600;
-            margin-bottom: 1.5rem;
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .btn-action {
+            background-color: var(--bg-surface);
+            border: 1px solid var(--border-subtle);
+            color: var(--text-primary);
+            padding: 8px 14px;
+            border-radius: 6px;
+            font-weight: 500;
+            font-size: 13px;
+            cursor: pointer;
+            transition: background 0.15s ease, border-color 0.15s ease;
+        }
+
+        .btn-action:hover {
+            background-color: var(--bg-hover);
+            border-color: var(--accent-blue);
         }
 
         .downloads-list {
             display: flex;
             flex-direction: column;
-            gap: 12px;
+            gap: 10px;
         }
 
         .download-card {
@@ -110,6 +142,13 @@
             display: flex;
             align-items: center;
             gap: 16px;
+            cursor: pointer;
+            transition: background 0.1s ease, border-color 0.1s ease;
+        }
+
+        .download-card:hover {
+            background-color: var(--bg-hover);
+            border-color: rgba(255, 255, 255, 0.15);
         }
 
         .file-icon {
@@ -128,14 +167,34 @@
         .file-name {
             font-weight: 600;
             color: var(--text-primary);
-        }
-
-        .file-url {
-            font-size: 11px;
-            color: var(--text-secondary);
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+        }
+
+        .file-meta {
+            font-size: 11px;
+            color: var(--text-secondary);
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .file-status {
+            font-weight: 500;
+            text-transform: capitalize;
+        }
+
+        .status-completed {
+            color: var(--accent-green);
+        }
+
+        .status-downloading {
+            color: var(--accent-blue);
+        }
+
+        .status-failed {
+            color: var(--accent-red);
         }
 
         .empty-state {
@@ -155,18 +214,93 @@
             <span>Downloads</span>
         </div>
         <nav class="sidebar-menu">
-            <a class="sidebar-item" href="nexora://history">Chrome History</a>
-            <a class="sidebar-item" href="nexora://bookmarks">Bookmarks</a>
-            <a class="sidebar-item active" href="nexora://downloads">Downloads</a>
-            <a class="sidebar-item" href="nexora://settings">Settings</a>
+            <a class="sidebar-item" href="javascript:void(0)" onclick="sendIpc({ type: 'navigate', url: 'nexora://history' })">Browsing History</a>
+            <a class="sidebar-item" href="javascript:void(0)" onclick="sendIpc({ type: 'navigate', url: 'nexora://bookmarks' })">Bookmarks</a>
+            <a class="sidebar-item active" href="javascript:void(0)" onclick="sendIpc({ type: 'navigate', url: 'nexora://downloads' })">Downloads</a>
+            <a class="sidebar-item" href="javascript:void(0)" onclick="sendIpc({ type: 'navigate', url: 'nexora://settings' })">Settings</a>
         </nav>
     </aside>
 
     <main class="main-content">
-        <h1 class="page-title">Downloads</h1>
+        <header class="header-row">
+            <h1 class="page-title">Downloads</h1>
+            <div class="header-actions">
+                <button class="btn-action" id="btn-open-folder">Open Downloads Folder</button>
+                <button class="btn-action" id="btn-clear-downloads">Clear All</button>
+            </div>
+        </header>
+
         <div class="downloads-list" id="downloads-container">
             <div class="empty-state">No active or previous downloads.</div>
         </div>
     </main>
+
+    <script>
+        function sendIpc(msg) {
+            if (window.ipc) {
+                window.ipc.postMessage(JSON.stringify(msg));
+            }
+        }
+
+        const container = document.getElementById('downloads-container');
+        const btnOpenFolder = document.getElementById('btn-open-folder');
+        const btnClear = document.getElementById('btn-clear-downloads');
+
+        function formatBytes(bytes) {
+            if (!bytes || bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+        }
+
+        function renderDownloads(items) {
+            if (!items || items.length === 0) {
+                container.innerHTML = '<div class="empty-state">No active or previous downloads.</div>';
+                return;
+            }
+
+            container.innerHTML = '';
+            items.forEach(item => {
+                const card = document.createElement('div');
+                card.className = 'download-card';
+
+                const statusClass = item.status === 'completed' ? 'status-completed' : (item.status === 'downloading' ? 'status-downloading' : 'status-failed');
+
+                card.innerHTML = `
+                    <svg class="file-icon" width="24" height="24" viewBox="0 0 16 16" fill="currentColor">
+                        <path d="M2 1.75C2 .784 2.784 0 3.75 0h6.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v9.586A1.75 1.75 0 0 1 13.25 16h-9.5A1.75 1.75 0 0 1 2 14.25Zm1.75-.25a.25.25 0 0 0-.25.25v12.5c0 .138.112.25.25.25h9.5a.25.25 0 0 0 .25-.25V6h-2.75A1.75 1.75 0 0 1 9 4.25V1.5Zm6.75.793V4.25c0 .138.112.25.25.25h2.457L10.5 2.293Z"/>
+                    </svg>
+                    <div class="file-details">
+                        <span class="file-name" title="${item.target_path}">${item.filename}</span>
+                        <div class="file-meta">
+                            <span class="file-status ${statusClass}">${item.status}</span>
+                            ${item.file_size > 0 ? `<span>&bull; ${formatBytes(item.file_size)}</span>` : ''}
+                            <span>&bull; ${new Date(item.created_at).toLocaleDateString()}</span>
+                        </div>
+                    </div>
+                `;
+
+                card.addEventListener('click', () => {
+                    sendIpc({ type: 'open_file', path: item.target_path });
+                });
+
+                container.appendChild(card);
+            });
+        }
+
+        window.__nexora_render_downloads = renderDownloads;
+
+        btnOpenFolder.addEventListener('click', () => {
+            sendIpc({ type: 'open_downloads_folder' });
+        });
+
+        btnClear.addEventListener('click', () => {
+            sendIpc({ type: 'clear_downloads' });
+            container.innerHTML = '<div class="empty-state">Downloads cleared.</div>';
+        });
+
+        sendIpc({ type: 'get_downloads' });
+    </script>
 </body>
 </html>

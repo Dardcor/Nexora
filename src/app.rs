@@ -19,11 +19,22 @@ pub struct NexoraApp {
 
 impl NexoraApp {
     pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
+        Self::new_with_mode(false)
+    }
+
+    pub fn new_with_mode(incognito: bool) -> Result<Self, Box<dyn std::error::Error>> {
         let config = NexoraConfig::default();
         let security = Arc::new(NexoraSecurityManager::new());
         // Initialize encrypted vault and local offline SQLite database
         let vault = Arc::new(LocalVault::init("nexora_master_local_vault_key", None)?);
-        let db = Arc::new(NexoraDatabase::init(None)?);
+        let db = if incognito {
+            Arc::new(NexoraDatabase::init_in_memory()?)
+        } else {
+            Arc::new(NexoraDatabase::init(None)?)
+        };
+        let shield_on = db.get_setting("shield_enabled", "true") == "true";
+        security.shield.set_enabled(shield_on);
+
         let freezer = TabFreezer::new(config.hibernation_timeout_secs);
 
         let initial_tab = BrowserTab::new(

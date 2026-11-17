@@ -106,28 +106,55 @@
             font-weight: 600;
         }
 
-        .bookmarks-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-            gap: 12px;
+        .search-input {
+            background-color: var(--bg-surface);
+            border: 1px solid var(--border-subtle);
+            color: var(--text-primary);
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            outline: none;
+            width: 260px;
+            transition: border-color 0.15s ease;
         }
 
-        .bookmark-card {
+        .search-input:focus {
+            border-color: var(--accent-blue);
+        }
+
+        .bookmarks-grid {
+            display: flex;
+            flex-direction: column;
             background-color: var(--bg-surface);
             border: 1px solid var(--border-subtle);
             border-radius: 8px;
-            padding: 12px 14px;
+            overflow: hidden;
+        }
+
+        .bookmark-card {
             display: flex;
             align-items: center;
-            gap: 12px;
+            padding: 12px 16px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+            gap: 14px;
             cursor: pointer;
-            position: relative;
-            transition: background 0.1s ease, border-color 0.1s ease;
+            transition: background 0.1s ease;
         }
 
         .bookmark-card:hover {
-            background-color: var(--bg-hover);
-            border-color: rgba(255, 255, 255, 0.15);
+            background-color: rgba(255, 255, 255, 0.03);
+        }
+
+        .bookmark-card:last-child {
+            border-bottom: none;
+        }
+
+        .bookmark-favicon {
+            width: 16px;
+            height: 16px;
+            border-radius: 2px;
+            object-fit: contain;
+            flex-shrink: 0;
         }
 
         .bookmark-star {
@@ -145,10 +172,10 @@
 
         .bookmark-name {
             font-weight: 500;
+            color: var(--text-primary);
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
-            color: var(--text-primary);
         }
 
         .bookmark-url {
@@ -179,11 +206,11 @@
 
         .bookmark-delete-btn:hover {
             color: var(--accent-red);
+            background-color: rgba(218, 55, 60, 0.1);
         }
 
         .empty-state {
-            grid-column: 1 / -1;
-            padding: 4rem 2rem;
+            padding: 3rem;
             text-align: center;
             color: var(--text-secondary);
         }
@@ -193,25 +220,26 @@
     <aside class="sidebar">
         <div class="sidebar-brand">
             <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor">
-                <path d="M3.75 2a.75.75 0 0 0-.75.75v11.5a.75.75 0 0 0 1.28.53L8 11.23l3.72 3.55a.75.75 0 0 0 1.28-.53V2.75a.75.75 0 0 0-.75-.75h-8.5Z"/>
+                <path d="m8 1.75 2.122 4.298 4.745.69-3.434 3.346.81 4.726L8 12.585l-4.243 2.225.81-4.726L1.133 6.738l4.745-.69L8 1.75Z"/>
             </svg>
             <span>Bookmarks</span>
         </div>
         <nav class="sidebar-menu">
-            <a class="sidebar-item" href="nexora://history">Chrome History</a>
-            <a class="sidebar-item active" href="nexora://bookmarks">Bookmarks Bar</a>
-            <a class="sidebar-item" href="nexora://downloads">Downloads</a>
-            <a class="sidebar-item" href="nexora://settings">Settings</a>
+            <a class="sidebar-item" href="javascript:void(0)" onclick="sendIpc({ type: 'navigate', url: 'nexora://history' })">Browsing History</a>
+            <a class="sidebar-item active" href="javascript:void(0)" onclick="sendIpc({ type: 'navigate', url: 'nexora://bookmarks' })">Bookmarks</a>
+            <a class="sidebar-item" href="javascript:void(0)" onclick="sendIpc({ type: 'navigate', url: 'nexora://downloads' })">Downloads</a>
+            <a class="sidebar-item" href="javascript:void(0)" onclick="sendIpc({ type: 'navigate', url: 'nexora://settings' })">Settings</a>
         </nav>
     </aside>
 
     <main class="main-content">
         <header class="header-row">
             <h1 class="page-title">Bookmarks Bar</h1>
+            <input type="text" class="search-input" id="bookmarks-search" placeholder="Search bookmarks..." autocomplete="off">
         </header>
 
         <section class="bookmarks-grid" id="bookmarks-container">
-            <!-- Dynamically populated from SQLite -->
+            <div class="empty-state">Loading bookmarks...</div>
         </section>
     </main>
 
@@ -222,22 +250,58 @@
             }
         }
 
+        function getDomain(url) {
+            if (!url) return '';
+            try { return new URL(url).hostname; } catch(e) { return ''; }
+        }
+
         const container = document.getElementById('bookmarks-container');
+        const searchInput = document.getElementById('bookmarks-search');
+        let allBookmarks = [];
 
         function renderBookmarks(bookmarks) {
-            if (!bookmarks || bookmarks.length === 0) {
-                container.innerHTML = '<div class="empty-state">No bookmarks saved. Click the star icon (★) in the Omnibox to bookmark any page.</div>';
+            allBookmarks = bookmarks || [];
+            applyFilter();
+        }
+
+        function applyFilter() {
+            const query = (searchInput.value || '').toLowerCase();
+            const filtered = allBookmarks.filter(b => {
+                if (!query) return true;
+                return (b.title && b.title.toLowerCase().includes(query)) ||
+                       (b.url && b.url.toLowerCase().includes(query));
+            });
+
+            if (!filtered || filtered.length === 0) {
+                container.innerHTML = '<div class="empty-state">No bookmarks found. Click the star icon (★) in the Omnibox to bookmark any page.</div>';
                 return;
             }
 
             container.innerHTML = '';
-            bookmarks.forEach(b => {
+            filtered.forEach(b => {
                 const card = document.createElement('div');
                 card.className = 'bookmark-card';
+                const domain = getDomain(b.url);
+                const faviconSrc = domain ? `https://www.google.com/s2/favicons?domain=${domain}&sz=32` : '';
+
+                let iconHtml = '';
+                if (faviconSrc) {
+                    iconHtml = `
+                        <img class="bookmark-favicon" src="${faviconSrc}" alt="" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';" />
+                        <svg class="bookmark-star" style="display:none;" width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                            <path d="m8 1.75 2.122 4.298 4.745.69-3.434 3.346.81 4.726L8 12.585l-4.243 2.225.81-4.726L1.133 6.738l4.745-.69L8 1.75Z"/>
+                        </svg>
+                    `;
+                } else {
+                    iconHtml = `
+                        <svg class="bookmark-star" width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                            <path d="m8 1.75 2.122 4.298 4.745.69-3.434 3.346.81 4.726L8 12.585l-4.243 2.225.81-4.726L1.133 6.738l4.745-.69L8 1.75Z"/>
+                        </svg>
+                    `;
+                }
+
                 card.innerHTML = `
-                    <svg class="bookmark-star" width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                        <path d="m8 1.75 2.122 4.298 4.745.69-3.434 3.346.81 4.726L8 12.585l-4.243 2.225.81-4.726L1.133 6.738l4.745-.69L8 1.75Z"/>
-                    </svg>
+                    ${iconHtml}
                     <div class="bookmark-info">
                         <span class="bookmark-name" title="${b.title}">${b.title || b.url}</span>
                         <span class="bookmark-url">${b.url}</span>
@@ -257,6 +321,7 @@
                 card.querySelector('.bookmark-delete-btn').addEventListener('click', (e) => {
                     e.stopPropagation();
                     sendIpc({ type: 'delete_bookmark', url: b.url });
+                    allBookmarks = allBookmarks.filter(item => item.url !== b.url);
                     card.remove();
                 });
 
@@ -265,6 +330,8 @@
         }
 
         window.__nexora_render_bookmarks = renderBookmarks;
+
+        searchInput.addEventListener('input', applyFilter);
 
         // Request bookmarks
         sendIpc({ type: 'get_bookmarks' });

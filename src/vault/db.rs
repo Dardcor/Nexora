@@ -67,10 +67,20 @@ impl NexoraDatabase {
         let db_path = db_dir.join("nexora.db");
 
         let conn = Connection::open(&db_path)?;
+        Self::setup_connection(conn, db_path)
+    }
 
+    /// Initialize an ephemeral in-memory SQLite database for Incognito windows.
+    pub fn init_in_memory() -> Result<Self, Box<dyn std::error::Error>> {
+        let conn = Connection::open_in_memory()?;
+        Self::setup_connection(conn, PathBuf::from(":memory:"))
+    }
+
+    fn setup_connection(conn: Connection, db_path: PathBuf) -> Result<Self, Box<dyn std::error::Error>> {
         // Performance & Reliability pragmas
         conn.execute_batch(
-            "PRAGMA journal_mode = WAL;
+            "PRAGMA busy_timeout = 5000;
+             PRAGMA journal_mode = WAL;
              PRAGMA synchronous = NORMAL;
              PRAGMA foreign_keys = ON;
              PRAGMA temp_store = MEMORY;
@@ -304,6 +314,74 @@ impl NexoraDatabase {
             results.push(r?);
         }
         Ok(results)
+    }
+
+    pub fn update_bookmark_favicon(&self, url: &str, favicon: &str) -> SqlResult<()> {
+        let conn = self.conn.lock();
+        conn.execute(
+            "UPDATE bookmarks SET favicon = ?1 WHERE url = ?2",
+            params![favicon, url],
+        )?;
+        Ok(())
+    }
+
+    // --- Downloads Operations ---
+
+    pub fn record_download(
+        &self,
+        id: &str,
+        filename: &str,
+        url: &str,
+        target_path: &str,
+        status: &str,
+    ) -> SqlResult<()> {
+        let conn = self.conn.lock();
+        let now = Utc::now().timestamp_millis();
+        conn.execute(
+            "INSERT OR REPLACE INTO downloads (id, filename, url, target_path, file_size, status, created_at)
+             VALUES (?1, ?2, ?3, ?4, 0, ?5, ?6)",
+            params![id, filename, url, target_path, status, now],
+        )?;
+        Ok(())
+    }
+
+    pub fn update_download_status(&self, url: &str, status: &str, file_size: i64) -> SqlResult<()> {
+        let conn = self.conn.lock();
+        conn.execute(
+            "UPDATE downloads SET status = ?1, file_size = ?2 WHERE url = ?3",
+            params![status, file_size, url],
+        )?;
+        Ok(())
+    }
+
+    pub fn get_downloads(&self) -> SqlResult<Vec<DownloadRecord>> {
+        let conn = self.conn.lock();
+        let mut stmt = conn.prepare(
+            "SELECT id, filename, url, target_path, file_size, status, created_at FROM downloads ORDER BY created_at DESC",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            Ok(DownloadRecord {
+                id: row.get(0)?,
+                filename: row.get(1)?,
+                url: row.get(2)?,
+                target_path: row.get(3)?,
+                file_size: row.get(4)?,
+                status: row.get(5)?,
+                created_at: row.get(6)?,
+            })
+        })?;
+
+        let mut results = Vec::new();
+        for r in rows {
+            results.push(r?);
+        }
+        Ok(results)
+    }
+
+    pub fn clear_downloads(&self) -> SqlResult<()> {
+        let conn = self.conn.lock();
+        conn.execute("DELETE FROM downloads", [])?;
+        Ok(())
     }
 
     // --- Omnibox Autocomplete Suggestions ---

@@ -114,7 +114,7 @@
             border-bottom: 1px solid var(--border-subtle);
             display: flex;
             align-items: center;
-            gap: 10px;
+            justify-content: space-between;
         }
 
         .setting-row {
@@ -231,10 +231,10 @@
             <span>Settings</span>
         </div>
         <nav class="sidebar-menu">
-            <a class="sidebar-item" href="nexora://history">Chrome History</a>
-            <a class="sidebar-item" href="nexora://bookmarks">Bookmarks</a>
-            <a class="sidebar-item" href="nexora://downloads">Downloads</a>
-            <a class="sidebar-item active" href="nexora://settings">Settings</a>
+            <a class="sidebar-item" href="javascript:void(0)" onclick="sendIpc({ type: 'navigate', url: 'nexora://history' })">Browsing History</a>
+            <a class="sidebar-item" href="javascript:void(0)" onclick="sendIpc({ type: 'navigate', url: 'nexora://bookmarks' })">Bookmarks</a>
+            <a class="sidebar-item" href="javascript:void(0)" onclick="sendIpc({ type: 'navigate', url: 'nexora://downloads' })">Downloads</a>
+            <a class="sidebar-item active" href="javascript:void(0)" onclick="sendIpc({ type: 'navigate', url: 'nexora://settings' })">Settings</a>
         </nav>
     </aside>
 
@@ -254,7 +254,8 @@
                 <select id="setting-search-engine">
                     <option value="google">Google Search (Default)</option>
                     <option value="duckduckgo">DuckDuckGo</option>
-                    <option value="direct">Direct Web / URL Only</option>
+                    <option value="brave">Brave Search</option>
+                    <option value="bing">Bing</option>
                 </select>
             </div>
         </section>
@@ -262,12 +263,12 @@
         <!-- Privacy & Nexora Shield -->
         <section class="settings-section">
             <div class="section-header">
-                <span>Privacy & Nexora Shield</span>
+                <span>Privacy &amp; Nexora Shield</span>
                 <span class="badge-status">100% Local Encrypted</span>
             </div>
             <div class="setting-row">
                 <div class="setting-label">
-                    <span class="setting-name">Nexora Shield ad & tracker protection</span>
+                    <span class="setting-name">Nexora Shield ad &amp; tracker protection</span>
                     <span class="setting-desc">Blocks intrusive tracking scripts, analytics beacons, and cryptominers locally</span>
                 </div>
                 <label class="switch">
@@ -285,16 +286,6 @@
                     <span class="slider"></span>
                 </label>
             </div>
-            <div class="setting-row">
-                <div class="setting-label">
-                    <span class="setting-name">Show Bookmarks Bar</span>
-                    <span class="setting-desc">Displays saved shortcuts directly beneath the address bar (Ctrl+Shift+B)</span>
-                </div>
-                <label class="switch">
-                    <input type="checkbox" id="setting-bookmarks-bar" checked>
-                    <span class="slider"></span>
-                </label>
-            </div>
         </section>
 
         <!-- Storage & Database -->
@@ -307,7 +298,21 @@
                     <span class="setting-name">Database Engine</span>
                     <span class="setting-desc">SQLite WAL-mode engine stored purely on device (%APPDATA%/Nexora/nexora.db). Zero cloud sync.</span>
                 </div>
-                <span class="badge-status">Active & Encrypted</span>
+                <span class="badge-status">Active &amp; Encrypted</span>
+            </div>
+        </section>
+
+        <!-- About Nexora -->
+        <section class="settings-section">
+            <div class="section-header">
+                <span>About Nexora</span>
+            </div>
+            <div class="setting-row">
+                <div class="setting-label">
+                    <span class="setting-name">Nexora Browser</span>
+                    <span class="setting-desc">Version 0.1.0 &bull; Built in Rust &bull; Memory-Safe &bull; Zero Telemetry</span>
+                </div>
+                <span class="badge-status">Up to Date</span>
             </div>
         </section>
     </main>
@@ -322,7 +327,6 @@
         const selEngine = document.getElementById('setting-search-engine');
         const swShield = document.getElementById('setting-shield');
         const swHttps = document.getElementById('setting-https');
-        const swBookmarksBar = document.getElementById('setting-bookmarks-bar');
 
         selEngine.addEventListener('change', (e) => {
             sendIpc({ type: 'set_setting', key: 'search_engine', value: e.target.value });
@@ -336,17 +340,11 @@
             sendIpc({ type: 'set_setting', key: 'https_only', value: e.target.checked ? 'true' : 'false' });
         });
 
-        swBookmarksBar.addEventListener('change', (e) => {
-            sendIpc({ type: 'set_setting', key: 'show_bookmarks_bar', value: e.target.checked ? 'true' : 'false' });
-            sendIpc({ type: 'toggle_bookmarks_bar' });
-        });
-
         window.__nexora_render_settings = function(settings) {
             if (!settings) return;
             if (settings.search_engine) selEngine.value = settings.search_engine;
             if (settings.shield_enabled !== undefined) swShield.checked = settings.shield_enabled === 'true';
             if (settings.https_only !== undefined) swHttps.checked = settings.https_only === 'true';
-            if (settings.show_bookmarks_bar !== undefined) swBookmarksBar.checked = settings.show_bookmarks_bar === 'true';
         };
 
         sendIpc({ type: 'get_settings' });

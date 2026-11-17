@@ -86,28 +86,6 @@
             color: var(--accent-blue);
         }
 
-        .sidebar-footer {
-            margin-top: auto;
-        }
-
-        .btn-clear-all {
-            width: 100%;
-            padding: 8px 12px;
-            border-radius: 6px;
-            border: 1px solid var(--accent-red);
-            background: transparent;
-            color: var(--accent-red);
-            font-weight: 500;
-            font-size: 12px;
-            cursor: pointer;
-            transition: background 0.1s ease, color 0.1s ease;
-        }
-
-        .btn-clear-all:hover {
-            background: var(--accent-red);
-            color: #ffffff;
-        }
-
         /* Main Content */
         .history-main {
             flex: 1;
@@ -129,60 +107,81 @@
             font-weight: 600;
         }
 
-        .search-box {
+        .history-actions {
             display: flex;
             align-items: center;
+            gap: 10px;
+        }
+
+        .search-input {
             background-color: var(--bg-surface);
             border: 1px solid var(--border-subtle);
-            border-radius: 8px;
-            padding: 6px 12px;
-            gap: 8px;
-            width: 320px;
-        }
-
-        .search-box input {
-            background: transparent;
-            border: none;
-            outline: none;
             color: var(--text-primary);
+            padding: 8px 12px;
+            border-radius: 6px;
             font-size: 13px;
-            width: 100%;
+            outline: none;
+            width: 260px;
+            transition: border-color 0.15s ease;
         }
 
-        .search-box svg {
-            color: var(--text-secondary);
-            flex-shrink: 0;
+        .search-input:focus {
+            border-color: var(--accent-blue);
         }
 
-        .history-card {
+        .btn-clear {
+            background-color: rgba(218, 55, 60, 0.15);
+            color: var(--accent-red);
+            border: 1px solid rgba(218, 55, 60, 0.3);
+            padding: 8px 14px;
+            border-radius: 6px;
+            font-weight: 500;
+            font-size: 13px;
+            cursor: pointer;
+            transition: background 0.15s ease;
+        }
+
+        .btn-clear:hover {
+            background-color: rgba(218, 55, 60, 0.25);
+        }
+
+        /* History List */
+        .history-list {
             background-color: var(--bg-surface);
             border: 1px solid var(--border-subtle);
             border-radius: 8px;
             overflow: hidden;
-            margin-bottom: 1.5rem;
         }
 
         .history-item-row {
             display: flex;
             align-items: center;
-            padding: 10px 16px;
+            padding: 12px 16px;
             border-bottom: 1px solid rgba(255, 255, 255, 0.04);
             gap: 14px;
             transition: background 0.1s ease;
+        }
+
+        .history-item-row:hover {
+            background-color: rgba(255, 255, 255, 0.02);
         }
 
         .history-item-row:last-child {
             border-bottom: none;
         }
 
-        .history-item-row:hover {
-            background-color: var(--bg-hover);
+        .item-time {
+            font-size: 12px;
+            color: var(--text-secondary);
+            width: 60px;
+            flex-shrink: 0;
         }
 
-        .item-time {
-            color: var(--text-secondary);
-            font-size: 12px;
-            width: 70px;
+        .item-favicon {
+            width: 16px;
+            height: 16px;
+            border-radius: 2px;
+            object-fit: contain;
             flex-shrink: 0;
         }
 
@@ -224,8 +223,8 @@
 
         .item-count {
             font-size: 11px;
-            color: var(--text-secondary);
-            background: rgba(255, 255, 255, 0.06);
+            color: var(--accent-blue);
+            background: rgba(88, 101, 242, 0.1);
             padding: 2px 6px;
             border-radius: 4px;
             flex-shrink: 0;
@@ -251,10 +250,11 @@
 
         .item-delete-btn:hover {
             color: var(--accent-red);
+            background-color: rgba(218, 55, 60, 0.1);
         }
 
         .empty-state {
-            padding: 4rem 2rem;
+            padding: 3rem;
             text-align: center;
             color: var(--text-secondary);
         }
@@ -264,35 +264,30 @@
     <aside class="history-sidebar">
         <div class="sidebar-brand">
             <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor">
-                <path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0ZM1.5 8a6.5 6.5 0 1 1 13 0 6.5 6.5 0 0 1-13 0Zm7-4.75a.75.75 0 0 0-1.5 0v5c0 .414.336.75.75.75h3.5a.75.75 0 0 0 0-1.5h-2.75V3.25Z"/>
+                <path d="M8.515 1.019A7 7 0 0 0 8 1a7 7 0 1 0 7 7h-1.5a5.5 5.5 0 1 1-5.5-5.5v2.5l3.5-3.5L8 0v1.019ZM8 4.5a.75.75 0 0 1 .75.75v2.69l1.72 1.72a.75.75 0 1 1-1.06 1.06l-2-2A.75.75 0 0 1 7.25 8V5.25A.75.75 0 0 1 8 4.5Z"/>
             </svg>
             <span>History</span>
         </div>
         <nav class="sidebar-menu">
-            <a class="sidebar-item active" href="nexora://history">Chrome History</a>
-            <a class="sidebar-item" href="nexora://bookmarks">Bookmarks</a>
-            <a class="sidebar-item" href="nexora://downloads">Downloads</a>
-            <a class="sidebar-item" href="nexora://settings">Settings</a>
+            <a class="sidebar-item active" href="javascript:void(0)" onclick="sendIpc({ type: 'navigate', url: 'nexora://history' })">Browsing History</a>
+            <a class="sidebar-item" href="javascript:void(0)" onclick="sendIpc({ type: 'navigate', url: 'nexora://bookmarks' })">Bookmarks</a>
+            <a class="sidebar-item" href="javascript:void(0)" onclick="sendIpc({ type: 'navigate', url: 'nexora://downloads' })">Downloads</a>
+            <a class="sidebar-item" href="javascript:void(0)" onclick="sendIpc({ type: 'navigate', url: 'nexora://settings' })">Settings</a>
         </nav>
-        <div class="sidebar-footer">
-            <button class="btn-clear-all" id="btn-clear-history">Clear Browsing Data</button>
-        </div>
     </aside>
 
     <main class="history-main">
         <header class="history-header">
             <h1 class="history-title">Browsing History</h1>
-            <div class="search-box">
-                <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-                    <path d="M10.68 11.74a6 6 0 0 1-7.922-8.982 6 6 0 0 1 8.982 7.922l3.04 3.04a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215ZM11.5 7a4.499 4.499 0 1 0-8.997 0A4.499 4.499 0 0 0 11.5 7Z"/>
-                </svg>
-                <input type="text" id="history-search" placeholder="Search history..." autocomplete="off">
+            <div class="history-actions">
+                <input type="text" class="search-input" id="history-search" placeholder="Search history..." autocomplete="off">
+                <button class="btn-clear" id="btn-clear-history">Clear History</button>
             </div>
         </header>
 
-        <section class="history-card" id="history-list">
-            <!-- Dynamically populated from SQLite -->
-        </section>
+        <div class="history-list" id="history-list">
+            <div class="empty-state">Loading history...</div>
+        </div>
     </main>
 
     <script>
@@ -300,6 +295,11 @@
             if (window.ipc) {
                 window.ipc.postMessage(JSON.stringify(msg));
             }
+        }
+
+        function getDomain(url) {
+            if (!url) return '';
+            try { return new URL(url).hostname; } catch(e) { return ''; }
         }
 
         const historyList = document.getElementById('history-list');
@@ -321,11 +321,28 @@
             records.forEach(item => {
                 const row = document.createElement('div');
                 row.className = 'history-item-row';
+                const domain = getDomain(item.url);
+                const faviconSrc = domain ? `https://www.google.com/s2/favicons?domain=${domain}&sz=32` : '';
+
+                let iconHtml = '';
+                if (faviconSrc) {
+                    iconHtml = `
+                        <img class="item-favicon" src="${faviconSrc}" alt="" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';" />
+                        <svg class="item-globe" style="display:none;" width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                            <path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0ZM1.5 8a6.5 6.5 0 1 1 13 0 6.5 6.5 0 0 1-13 0Zm7-5.46v10.92a6.51 6.51 0 0 1-3.25-1.46 6.51 6.51 0 0 1 0-8 6.51 6.51 0 0 1 3.25-1.46Z"/>
+                        </svg>
+                    `;
+                } else {
+                    iconHtml = `
+                        <svg class="item-globe" width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                            <path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0ZM1.5 8a6.5 6.5 0 1 1 13 0 6.5 6.5 0 0 1-13 0Zm7-5.46v10.92a6.51 6.51 0 0 1-3.25-1.46 6.51 6.51 0 0 1 0-8 6.51 6.51 0 0 1 3.25-1.46Z"/>
+                        </svg>
+                    `;
+                }
+
                 row.innerHTML = `
                     <span class="item-time">${formatTime(item.visit_time)}</span>
-                    <svg class="item-globe" width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                        <path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0ZM1.5 8a6.5 6.5 0 1 1 13 0 6.5 6.5 0 0 1-13 0Zm7-5.46v10.92a6.51 6.51 0 0 1-3.25-1.46 6.51 6.51 0 0 1 0-8 6.51 6.51 0 0 1 3.25-1.46Z"/>
-                    </svg>
+                    ${iconHtml}
                     <div class="item-details">
                         <span class="item-title" title="${item.title}">${item.title || item.url}</span>
                         <span class="item-url">${item.url}</span>

@@ -336,6 +336,12 @@
     </main>
 
     <script>
+        function sendIpc(msg) {
+            if (window.ipc) {
+                window.ipc.postMessage(JSON.stringify(msg));
+            }
+        }
+
         const form = document.getElementById('home-search-form');
         const input = document.getElementById('home-search-input');
         const engineSelect = document.getElementById('engine-select');
@@ -348,7 +354,9 @@
             let targetUrl = val;
             const engine = engineSelect.value;
 
-            if (val.includes('.') && !val.includes(' ')) {
+            if (val.startsWith('nexora://')) {
+                targetUrl = val;
+            } else if (val.includes('.') && !val.includes(' ')) {
                 if (!val.startsWith('http://') && !val.startsWith('https://')) {
                     targetUrl = 'https://' + val;
                 }
@@ -358,6 +366,12 @@
                 switch(engine) {
                     case 'duckduckgo':
                         targetUrl = 'https://duckduckgo.com/?q=' + encodeURIComponent(val);
+                        break;
+                    case 'brave':
+                        targetUrl = 'https://search.brave.com/search?q=' + encodeURIComponent(val);
+                        break;
+                    case 'bing':
+                        targetUrl = 'https://www.bing.com/search?q=' + encodeURIComponent(val);
                         break;
                     case 'direct':
                         targetUrl = 'https://' + val;
@@ -369,8 +383,20 @@
                 }
             }
 
-            window.location.href = targetUrl;
+            if (window.ipc) {
+                sendIpc({ type: 'navigate', url: targetUrl });
+            } else {
+                window.location.href = targetUrl;
+            }
         });
+
+        window.__nexora_render_settings = function(settings) {
+            if (settings && settings.search_engine && engineSelect) {
+                engineSelect.value = settings.search_engine;
+            }
+        };
+
+        sendIpc({ type: 'get_settings' });
     </script>
 </body>
 </html>

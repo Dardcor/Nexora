@@ -96,7 +96,7 @@ impl LocalVault {
         let serialized = serde_json::to_vec(items)?;
         let encrypted_bytes = self.crypto.encrypt(&serialized)?;
 
-        let temp_path = self.vault_dir.join(format!("{}.tmp", file_name));
+        let temp_path = self.vault_dir.join(format!("{}.{}.tmp", file_name, std::process::id()));
         let final_path = self.vault_dir.join(file_name);
 
         let mut file = File::create(&temp_path)?;
