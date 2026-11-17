@@ -29,6 +29,10 @@ jobs:
             target: x86_64-apple-darwin
             binary_name: nexora
             asset_name: nexora-macos-x64.tar.gz
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            binary_name: nexora
+            asset_name: nexora-macos-arm64.tar.gz
 
     steps:
       - name: Checkout code

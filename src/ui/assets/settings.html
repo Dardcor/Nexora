@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settings - Nexora</title>
+    <style>
+        :root {
+            --bg-base: #1e1f22;
+            --bg-surface: #2b2d31;
+            --bg-hover: #35373c;
+            --border-subtle: #383a40;
+            --text-primary: #f2f3f5;
+            --text-secondary: #949ba4;
+            --accent-blue: #5865f2;
+            --accent-green: #23a55a;
+            --font-stack: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-base);
+            color: var(--text-primary);
+            font-family: var(--font-stack);
+            font-size: 13px;
+            display: flex;
+            min-height: 100vh;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 250px;
+            background-color: var(--bg-surface);
+            border-right: 1px solid var(--border-subtle);
+            padding: 1.5rem 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            flex-shrink: 0;
+        }
+
+        .sidebar-brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .sidebar-brand svg {
+            color: var(--accent-blue);
+        }
+
+        .sidebar-menu {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .sidebar-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 8px 12px;
+            border-radius: 6px;
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.1s ease, color 0.1s ease;
+        }
+
+        .sidebar-item:hover, .sidebar-item.active {
+            background-color: var(--bg-hover);
+            color: var(--text-primary);
+        }
+
+        .sidebar-item.active {
+            background-color: rgba(88, 101, 242, 0.15);
+            color: var(--accent-blue);
+        }
+
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            padding: 2rem 2.5rem;
+            overflow-y: auto;
+            max-width: 800px;
+        }
+
+        .page-title {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+        }
+
+        .settings-section {
+            background-color: var(--bg-surface);
+            border: 1px solid var(--border-subtle);
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+            overflow: hidden;
+        }
+
+        .section-header {
+            padding: 14px 18px;
+            font-weight: 600;
+            font-size: 14px;
+            border-bottom: 1px solid var(--border-subtle);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .setting-row {
+            padding: 14px 18px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+        }
+
+        .setting-row:last-child {
+            border-bottom: none;
+        }
+
+        .setting-label {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+
+        .setting-name {
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        .setting-desc {
+            font-size: 12px;
+            color: var(--text-secondary);
+            line-height: 1.4;
+        }
+
+        /* Form Controls */
+        select, input[type="text"] {
+            background-color: var(--bg-base);
+            border: 1px solid var(--border-subtle);
+            color: var(--text-primary);
+            padding: 6px 10px;
+            border-radius: 6px;
+            font-size: 13px;
+            outline: none;
+        }
+
+        select:focus, input[type="text"]:focus {
+            border-color: var(--accent-blue);
+        }
+
+        /* Switch toggle */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 40px;
+            height: 22px;
+            flex-shrink: 0;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: var(--bg-base);
+            border: 1px solid var(--border-subtle);
+            transition: .2s;
+            border-radius: 22px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 14px;
+            width: 14px;
+            left: 3px;
+            bottom: 3px;
+            background-color: var(--text-secondary);
+            transition: .2s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background-color: var(--accent-blue);
+            border-color: var(--accent-blue);
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(18px);
+            background-color: #ffffff;
+        }
+
+        .badge-status {
+            font-size: 11px;
+            color: var(--accent-green);
+            background: rgba(35, 165, 90, 0.15);
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <aside class="sidebar">
+        <div class="sidebar-brand">
+            <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0Zm0 1.5a6.5 6.5 0 1 1 0 13 6.5 6.5 0 0 1 0-13ZM7.25 4v5.25h4v-1.5H8.75V4h-1.5Z"/>
+            </svg>
+            <span>Settings</span>
+        </div>
+        <nav class="sidebar-menu">
+            <a class="sidebar-item" href="nexora://history">Chrome History</a>
+            <a class="sidebar-item" href="nexora://bookmarks">Bookmarks</a>
+            <a class="sidebar-item" href="nexora://downloads">Downloads</a>
+            <a class="sidebar-item active" href="nexora://settings">Settings</a>
+        </nav>
+    </aside>
+
+    <main class="main-content">
+        <h1 class="page-title">Settings</h1>
+
+        <!-- Search Engine -->
+        <section class="settings-section">
+            <div class="section-header">
+                <span>Search Engine</span>
+            </div>
+            <div class="setting-row">
+                <div class="setting-label">
+                    <span class="setting-name">Search engine used in the address bar</span>
+                    <span class="setting-desc">Choose which search provider handles queries typed into the omnibox</span>
+                </div>
+                <select id="setting-search-engine">
+                    <option value="google">Google Search (Default)</option>
+                    <option value="duckduckgo">DuckDuckGo</option>
+                    <option value="direct">Direct Web / URL Only</option>
+                </select>
+            </div>
+        </section>
+
+        <!-- Privacy & Nexora Shield -->
+        <section class="settings-section">
+            <div class="section-header">
+                <span>Privacy & Nexora Shield</span>
+                <span class="badge-status">100% Local Encrypted</span>
+            </div>
+            <div class="setting-row">
+                <div class="setting-label">
+                    <span class="setting-name">Nexora Shield ad & tracker protection</span>
+                    <span class="setting-desc">Blocks intrusive tracking scripts, analytics beacons, and cryptominers locally</span>
+                </div>
+                <label class="switch">
+                    <input type="checkbox" id="setting-shield" checked>
+                    <span class="slider"></span>
+                </label>
+            </div>
+            <div class="setting-row">
+                <div class="setting-label">
+                    <span class="setting-name">Always use HTTPS</span>
+                    <span class="setting-desc">Automatically upgrades unencrypted HTTP connections to secure HTTPS</span>
+                </div>
+                <label class="switch">
+                    <input type="checkbox" id="setting-https" checked>
+                    <span class="slider"></span>
+                </label>
+            </div>
+            <div class="setting-row">
+                <div class="setting-label">
+                    <span class="setting-name">Show Bookmarks Bar</span>
+                    <span class="setting-desc">Displays saved shortcuts directly beneath the address bar (Ctrl+Shift+B)</span>
+                </div>
+                <label class="switch">
+                    <input type="checkbox" id="setting-bookmarks-bar" checked>
+                    <span class="slider"></span>
+                </label>
+            </div>
+        </section>
+
+        <!-- Storage & Database -->
+        <section class="settings-section">
+            <div class="section-header">
+                <span>Local Offline SQLite Storage</span>
+            </div>
+            <div class="setting-row">
+                <div class="setting-label">
+                    <span class="setting-name">Database Engine</span>
+                    <span class="setting-desc">SQLite WAL-mode engine stored purely on device (%APPDATA%/Nexora/nexora.db). Zero cloud sync.</span>
+                </div>
+                <span class="badge-status">Active & Encrypted</span>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        function sendIpc(msg) {
+            if (window.ipc) {
+                window.ipc.postMessage(JSON.stringify(msg));
+            }
+        }
+
+        const selEngine = document.getElementById('setting-search-engine');
+        const swShield = document.getElementById('setting-shield');
+        const swHttps = document.getElementById('setting-https');
+        const swBookmarksBar = document.getElementById('setting-bookmarks-bar');
+
+        selEngine.addEventListener('change', (e) => {
+            sendIpc({ type: 'set_setting', key: 'search_engine', value: e.target.value });
+        });
+
+        swShield.addEventListener('change', (e) => {
+            sendIpc({ type: 'set_setting', key: 'shield_enabled', value: e.target.checked ? 'true' : 'false' });
+        });
+
+        swHttps.addEventListener('change', (e) => {
+            sendIpc({ type: 'set_setting', key: 'https_only', value: e.target.checked ? 'true' : 'false' });
+        });
+
+        swBookmarksBar.addEventListener('change', (e) => {
+            sendIpc({ type: 'set_setting', key: 'show_bookmarks_bar', value: e.target.checked ? 'true' : 'false' });
+            sendIpc({ type: 'toggle_bookmarks_bar' });
+        });
+
+        window.__nexora_render_settings = function(settings) {
+            if (!settings) return;
+            if (settings.search_engine) selEngine.value = settings.search_engine;
+            if (settings.shield_enabled !== undefined) swShield.checked = settings.shield_enabled === 'true';
+            if (settings.https_only !== undefined) swHttps.checked = settings.https_only === 'true';
+            if (settings.show_bookmarks_bar !== undefined) swBookmarksBar.checked = settings.show_bookmarks_bar === 'true';
+        };
+
+        sendIpc({ type: 'get_settings' });
+    </script>
+</body>
+</html>

@@ -1,4 +1,5 @@
 use serde_json::Value;
+use std::collections::HashMap;
 use std::sync::Arc;
 use tao::{
     event::{Event, WindowEvent},
@@ -16,7 +17,8 @@ use nexora::app::NexoraApp;
 use nexora::security::AntiFingerprint;
 use nexora::ui::NexoraUiAssets;
 
-const TOOLBAR_LOGICAL_HEIGHT: f64 = 78.0;
+const TOOLBAR_LOGICAL_HEIGHT_DEFAULT: f64 = 102.0;
+const TOOLBAR_LOGICAL_HEIGHT_COLLAPSED: f64 = 74.0;
 const DESKTOP_USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 
 #[derive(Debug, Clone)]
@@ -35,6 +37,117 @@ pub enum BrowserAction {
     MinimizeWindow,
     ToggleMaximizeWindow,
     CloseWindow,
+    // Multi-tab specific events
+    TabNavigated { tab_id: String, url: String },
+    TabLoadFinished { tab_id: String, url: String },
+    TabTitleChanged { tab_id: String, title: String },
+    ContentIpc { tab_id: String, body: String },
+    // Bookmarks and Omnibox
+    ToggleBookmark { url: String, title: String },
+    OmniboxQuery(String),
+    GetBookmarksBar,
+    ToggleBookmarksBar(bool),
+    SetZoom(u32),
+}
+
+/// Helper function to create an isolated, dedicated child WebView for any browser tab.
+fn create_tab_webview(
+    window: &tao::window::Window,
+    tab_id: &str,
+    initial_url: &str,
+    bounds: Rect,
+    proxy: EventLoopProxy<BrowserAction>,
+    security: Arc<nexora::security::NexoraSecurityManager>,
+) -> Result<wry::WebView, Box<dyn std::error::Error>> {
+    let stealth_script = AntiFingerprint::get_stealth_injection_script();
+
+    let proxy_nav = proxy.clone();
+    let tab_id_nav = tab_id.to_string();
+    let security_nav = Arc::clone(&security);
+
+    let proxy_load = proxy.clone();
+    let tab_id_load = tab_id.to_string();
+
+    let proxy_title = proxy.clone();
+    let tab_id_title = tab_id.to_string();
+
+    let proxy_ipc = proxy.clone();
+    let tab_id_ipc = tab_id.to_string();
+
+    let mut builder = WebViewBuilder::new()
+        .with_bounds(bounds)
+        .with_user_agent(DESKTOP_USER_AGENT)
+        .with_initialization_script(stealth_script)
+        .with_navigation_handler(move |url: String| -> bool {
+            if url.starts_with("nexora://") {
+                let _ = proxy_nav.send_event(BrowserAction::TabNavigated {
+                    tab_id: tab_id_nav.clone(),
+                    url,
+                });
+                return true;
+            }
+
+            let (should_allow, cleaned_url) = if security_nav.shield.should_block(&url) {
+                let (count, _) = security_nav.shield.get_statistics();
+                let _ = proxy_nav.send_event(BrowserAction::UpdateShield(count));
+                (false, url)
+            } else {
+                let cleaned = nexora::security::PrivacyHeaders::strip_tracking_params(&url);
+                (true, cleaned)
+            };
+
+            let _ = proxy_nav.send_event(BrowserAction::TabNavigated {
+                tab_id: tab_id_nav.clone(),
+                url: cleaned_url,
+            });
+            should_allow
+        })
+        .with_on_page_load_handler(move |event, url: String| {
+            if matches!(event, wry::PageLoadEvent::Finished) {
+                let _ = proxy_load.send_event(BrowserAction::TabLoadFinished {
+                    tab_id: tab_id_load.clone(),
+                    url,
+                });
+            }
+        })
+        .with_document_title_changed_handler(move |title: String| {
+            let _ = proxy_title.send_event(BrowserAction::TabTitleChanged {
+                tab_id: tab_id_title.clone(),
+                title,
+            });
+        })
+        .with_ipc_handler(move |req: wry::http::Request<String>| {
+            let body = req.body().to_string();
+            let _ = proxy_ipc.send_event(BrowserAction::ContentIpc {
+                tab_id: tab_id_ipc.clone(),
+                body,
+            });
+        });
+
+    if initial_url.starts_with("nexora://") || initial_url.is_empty() {
+        match initial_url {
+            "nexora://history" => {
+                builder = builder.with_html(NexoraUiAssets::get_history_html());
+            }
+            "nexora://bookmarks" => {
+                builder = builder.with_html(NexoraUiAssets::get_bookmarks_html());
+            }
+            "nexora://settings" => {
+                builder = builder.with_html(NexoraUiAssets::get_settings_html());
+            }
+            "nexora://downloads" => {
+                builder = builder.with_html(NexoraUiAssets::get_downloads_html());
+            }
+            _ => {
+                builder = builder.with_html(NexoraUiAssets::get_standalone_home_html());
+            }
+        }
+    } else {
+        builder = builder.with_url(initial_url);
+    }
+
+    let webview = builder.build_as_child(window)?;
+    Ok(webview)
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -71,10 +184,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let initial_physical = window.inner_size();
     let initial_width = initial_physical.width;
     let initial_height = initial_physical.height;
-    let initial_toolbar_h = (TOOLBAR_LOGICAL_HEIGHT * scale_factor) as u32;
+
+    let mut current_toolbar_logical_h = TOOLBAR_LOGICAL_HEIGHT_DEFAULT;
+    let initial_toolbar_h = (current_toolbar_logical_h * scale_factor) as u32;
     let initial_content_h = initial_height.saturating_sub(initial_toolbar_h);
 
-    // 1. Toolbar WebView (Tabs & Omnibox Header)
+    let mut content_bounds = Rect {
+        position: PhysicalPosition::new(0, initial_toolbar_h as i32).into(),
+        size: PhysicalSize::new(initial_width, initial_content_h).into(),
+    };
+
+    // 1. Toolbar WebView (Tabs, Omnibox, Actions, Bookmarks Bar)
     let proxy_toolbar = proxy.clone();
     let toolbar_html = NexoraUiAssets::get_inlined_toolbar_html();
 
@@ -103,7 +223,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             let _ = proxy_toolbar.send_event(BrowserAction::Reload);
                         }
                         "new_tab" => {
-                            let id = v.get("id").and_then(|i| i.as_str()).unwrap_or("default");
+                            let id = v.get("id").and_then(|i| i.as_str()).unwrap_or("tab-1");
                             let _ = proxy_toolbar.send_event(BrowserAction::NewTab(id.to_string()));
                         }
                         "close_tab" => {
@@ -128,6 +248,27 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         "close_window" => {
                             let _ = proxy_toolbar.send_event(BrowserAction::CloseWindow);
                         }
+                        "toggle_bookmark" => {
+                            let url = v.get("url").and_then(|u| u.as_str()).unwrap_or("").to_string();
+                            let title = v.get("title").and_then(|t| t.as_str()).unwrap_or(&url).to_string();
+                            let _ = proxy_toolbar.send_event(BrowserAction::ToggleBookmark { url, title });
+                        }
+                        "omnibox_query" => {
+                            if let Some(q) = v.get("query").and_then(|q| q.as_str()) {
+                                let _ = proxy_toolbar.send_event(BrowserAction::OmniboxQuery(q.to_string()));
+                            }
+                        }
+                        "get_bookmarks_bar" => {
+                            let _ = proxy_toolbar.send_event(BrowserAction::GetBookmarksBar);
+                        }
+                        "toggle_bookmarks_bar" => {
+                            let show = v.get("show").and_then(|s| s.as_bool()).unwrap_or(true);
+                            let _ = proxy_toolbar.send_event(BrowserAction::ToggleBookmarksBar(show));
+                        }
+                        "set_zoom" => {
+                            let level = v.get("level").and_then(|l| l.as_u64()).unwrap_or(100) as u32;
+                            let _ = proxy_toolbar.send_event(BrowserAction::SetZoom(level));
+                        }
                         _ => {}
                     }
                 }
@@ -135,53 +276,25 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         })
         .build_as_child(&window)?;
 
-    // 2. Content WebView (Full Native Web Rendering)
-    let proxy_load = proxy.clone();
-    let proxy_title = proxy.clone();
-    let proxy_nav = proxy.clone();
-    let security = Arc::clone(&app.security);
-    let stealth_script = AntiFingerprint::get_stealth_injection_script();
-    let home_html = NexoraUiAssets::get_standalone_home_html();
+    // 2. Multi-Tab Dedicated WebViews Map
+    let mut tab_webviews: HashMap<String, wry::WebView> = HashMap::new();
+    let mut active_tab_id: String = "tab-1".to_string();
 
-    let content_webview = WebViewBuilder::new()
-        .with_bounds(Rect {
-            position: PhysicalPosition::new(0, initial_toolbar_h as i32).into(),
-            size: PhysicalSize::new(initial_width, initial_content_h).into(),
-        })
-        .with_user_agent(DESKTOP_USER_AGENT)
-        .with_initialization_script(stealth_script)
-        .with_html(home_html)
-        .with_navigation_handler(move |url: String| -> bool {
-            let (should_allow, cleaned_url) = if security.shield.should_block(&url) {
-                let (count, _) = security.shield.get_statistics();
-                let _ = proxy_nav.send_event(BrowserAction::UpdateShield(count));
-                (false, url)
-            } else {
-                let cleaned = nexora::security::PrivacyHeaders::strip_tracking_params(&url);
-                (true, cleaned)
-            };
+    let initial_wv = create_tab_webview(
+        &window,
+        &active_tab_id,
+        "nexora://home",
+        content_bounds,
+        proxy.clone(),
+        Arc::clone(&app.security),
+    )?;
+    let _ = initial_wv.set_visible(true);
+    tab_webviews.insert(active_tab_id.clone(), initial_wv);
 
-            let _ = proxy_nav.send_event(BrowserAction::UpdateUrl(cleaned_url));
-            should_allow
-        })
-        .with_on_page_load_handler(move |event, url: String| {
-            if matches!(event, wry::PageLoadEvent::Finished) {
-                let _ = proxy_load.send_event(BrowserAction::UpdateUrl(url));
-            }
-        })
-        .with_document_title_changed_handler(move |title: String| {
-            let _ = proxy_title.send_event(BrowserAction::UpdateTitle(title));
-        })
-        .build_as_child(&window)?;
-
-    // Ensure bounds are set explicitly after window setup
+    // Initial explicit bounds setup
     let _ = toolbar_webview.set_bounds(Rect {
         position: PhysicalPosition::new(0, 0).into(),
         size: PhysicalSize::new(initial_width, initial_toolbar_h).into(),
-    });
-    let _ = content_webview.set_bounds(Rect {
-        position: PhysicalPosition::new(0, initial_toolbar_h as i32).into(),
-        size: PhysicalSize::new(initial_width, initial_content_h).into(),
     });
 
     // Main Event Loop
@@ -192,32 +305,268 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             Event::UserEvent(action) => {
                 match action {
                     BrowserAction::Navigate(url) => {
-                        if url == "nexora://home" || url.is_empty() {
-                            let _ = content_webview.load_html(NexoraUiAssets::get_standalone_home_html());
-                        } else {
-                            if let Some(cleaned) = app.security.inspect_and_filter_url(&url) {
-                                let _ = content_webview.load_url(&cleaned);
-                                app.vault.record_visit(cleaned, url.clone(), "default".to_string());
+                        if let Some(active_wv) = tab_webviews.get(&active_tab_id) {
+                            if url.starts_with("nexora://") || url.is_empty() {
+                                match url.as_str() {
+                                    "nexora://history" => {
+                                        let _ = active_wv.load_html(NexoraUiAssets::get_history_html());
+                                    }
+                                    "nexora://bookmarks" => {
+                                        let _ = active_wv.load_html(NexoraUiAssets::get_bookmarks_html());
+                                    }
+                                    "nexora://settings" => {
+                                        let _ = active_wv.load_html(NexoraUiAssets::get_settings_html());
+                                    }
+                                    "nexora://downloads" => {
+                                        let _ = active_wv.load_html(NexoraUiAssets::get_downloads_html());
+                                    }
+                                    _ => {
+                                        let _ = active_wv.load_html(NexoraUiAssets::get_standalone_home_html());
+                                    }
+                                }
+                            } else {
+                                if let Some(cleaned) = app.security.inspect_and_filter_url(&url) {
+                                    let _ = active_wv.load_url(&cleaned);
+                                    app.vault.record_visit(cleaned.clone(), url.clone(), "default".to_string());
+                                    let _ = app.db.record_visit(&cleaned, &url, "default");
+                                }
                             }
                         }
                     }
                     BrowserAction::GoBack => {
-                        let _ = content_webview.evaluate_script("window.history.back()");
+                        if let Some(active_wv) = tab_webviews.get(&active_tab_id) {
+                            let _ = active_wv.evaluate_script("window.history.back()");
+                        }
                     }
                     BrowserAction::GoForward => {
-                        let _ = content_webview.evaluate_script("window.history.forward()");
+                        if let Some(active_wv) = tab_webviews.get(&active_tab_id) {
+                            let _ = active_wv.evaluate_script("window.history.forward()");
+                        }
                     }
                     BrowserAction::Reload => {
-                        let _ = content_webview.evaluate_script("window.location.reload()");
+                        if let Some(active_wv) = tab_webviews.get(&active_tab_id) {
+                            let _ = active_wv.evaluate_script("window.location.reload()");
+                        }
                     }
-                    BrowserAction::NewTab(_) => {
-                        let _ = content_webview.load_html(NexoraUiAssets::get_standalone_home_html());
+                    BrowserAction::NewTab(id) => {
+                        // Hide current active tab webview
+                        if let Some(prev_wv) = tab_webviews.get(&active_tab_id) {
+                            let _ = prev_wv.set_visible(false);
+                        }
+
+                        match create_tab_webview(
+                            &window,
+                            &id,
+                            "nexora://home",
+                            content_bounds,
+                            proxy.clone(),
+                            Arc::clone(&app.security),
+                        ) {
+                            Ok(new_wv) => {
+                                let _ = new_wv.set_visible(true);
+                                tab_webviews.insert(id.clone(), new_wv);
+                                active_tab_id = id.clone();
+                                let _ = app.create_tab("nexora://home".into(), "Nexora Home".into(), "default".into());
+
+                                // Reset omnibox and bookmark star
+                                let _ = toolbar_webview.evaluate_script("if (window.__nexora_update_url) window.__nexora_update_url('');");
+                                let _ = toolbar_webview.evaluate_script("if (window.__nexora_set_bookmarked) window.__nexora_set_bookmarked(false);");
+                            }
+                            Err(e) => {
+                                eprintln!("Failed to create tab webview: {}", e);
+                            }
+                        }
                     }
-                    BrowserAction::SwitchTab(_) => {
-                        // Multi-tab buffer switch
+                    BrowserAction::SwitchTab(id) => {
+                        if id != active_tab_id {
+                            if let Some(prev_wv) = tab_webviews.get(&active_tab_id) {
+                                let _ = prev_wv.set_visible(false);
+                            }
+
+                            if let Some(curr_wv) = tab_webviews.get(&id) {
+                                let _ = curr_wv.set_visible(true);
+                                let _ = curr_wv.set_bounds(content_bounds);
+
+                                // Check bookmark status of current tab
+                                if let Ok(url) = curr_wv.url() {
+                                    let is_bm = app.db.is_bookmarked(&url);
+                                    let bm_script = format!("if (window.__nexora_set_bookmarked) window.__nexora_set_bookmarked({});", is_bm);
+                                    let _ = toolbar_webview.evaluate_script(&bm_script);
+                                }
+                            }
+
+                            active_tab_id = id.clone();
+                            app.switch_tab(&id);
+                        }
                     }
-                    BrowserAction::CloseTab(_) => {
-                        // Handled in toolbar state
+                    BrowserAction::CloseTab(id) => {
+                        tab_webviews.remove(&id);
+                        app.close_tab(&id);
+
+                        if active_tab_id == id {
+                            if let Some((next_id, next_wv)) = tab_webviews.iter().next() {
+                                let _ = next_wv.set_visible(true);
+                                let _ = next_wv.set_bounds(content_bounds);
+                                active_tab_id = next_id.clone();
+                            }
+                        }
+                    }
+                    BrowserAction::TabNavigated { tab_id, url } | BrowserAction::TabLoadFinished { tab_id, url } => {
+                        if tab_id == active_tab_id {
+                            let script = format!("if (window.__nexora_update_url) window.__nexora_update_url({:?});", url);
+                            let _ = toolbar_webview.evaluate_script(&script);
+
+                            let is_bm = app.db.is_bookmarked(&url);
+                            let bm_script = format!("if (window.__nexora_set_bookmarked) window.__nexora_set_bookmarked({});", is_bm);
+                            let _ = toolbar_webview.evaluate_script(&bm_script);
+                        }
+                    }
+                    BrowserAction::TabTitleChanged { tab_id, title } => {
+                        let script = format!(
+                            "if (window.__nexora_update_tab_title) window.__nexora_update_tab_title({:?}, {:?});",
+                            tab_id, title
+                        );
+                        let _ = toolbar_webview.evaluate_script(&script);
+
+                        if let Some(wv) = tab_webviews.get(&tab_id) {
+                            if let Ok(url) = wv.url() {
+                                if !url.is_empty() && !url.starts_with("nexora://") {
+                                    let _ = app.db.record_visit(&url, &title, "default");
+                                }
+                            }
+                        }
+                    }
+                    BrowserAction::ContentIpc { tab_id, body } => {
+                        if let Ok(v) = serde_json::from_str::<Value>(&body) {
+                            if let Some(msg_type) = v.get("type").and_then(|t| t.as_str()) {
+                                match msg_type {
+                                    "get_history" => {
+                                        let query = v.get("query").and_then(|q| q.as_str()).unwrap_or("");
+                                        let records = app.db.query_history(query, 100).unwrap_or_default();
+                                        if let Ok(json) = serde_json::to_string(&records) {
+                                            if let Some(wv) = tab_webviews.get(&tab_id) {
+                                                let script = format!("if (window.__nexora_render_history) window.__nexora_render_history({});", json);
+                                                let _ = wv.evaluate_script(&script);
+                                            }
+                                        }
+                                    }
+                                    "delete_history" => {
+                                        if let Some(id) = v.get("id").and_then(|i| i.as_i64()) {
+                                            let _ = app.db.delete_history_item(id);
+                                        }
+                                    }
+                                    "clear_history" => {
+                                        let _ = app.db.clear_history();
+                                    }
+                                    "get_bookmarks" => {
+                                        let bookmarks = app.db.get_bookmarks().unwrap_or_default();
+                                        if let Ok(json) = serde_json::to_string(&bookmarks) {
+                                            if let Some(wv) = tab_webviews.get(&tab_id) {
+                                                let script = format!("if (window.__nexora_render_bookmarks) window.__nexora_render_bookmarks({});", json);
+                                                let _ = wv.evaluate_script(&script);
+                                            }
+                                            let tb_script = format!("if (window.__nexora_render_bookmarks_bar) window.__nexora_render_bookmarks_bar({});", json);
+                                            let _ = toolbar_webview.evaluate_script(&tb_script);
+                                        }
+                                    }
+                                    "delete_bookmark" => {
+                                        if let Some(url) = v.get("url").and_then(|u| u.as_str()) {
+                                            let _ = app.db.remove_bookmark(url);
+                                            if let Ok(bookmarks) = app.db.get_bookmarks() {
+                                                if let Ok(json) = serde_json::to_string(&bookmarks) {
+                                                    let tb_script = format!("if (window.__nexora_render_bookmarks_bar) window.__nexora_render_bookmarks_bar({});", json);
+                                                    let _ = toolbar_webview.evaluate_script(&tb_script);
+                                                }
+                                            }
+                                        }
+                                    }
+                                    "get_settings" => {
+                                        let mut map = serde_json::Map::new();
+                                        map.insert("search_engine".into(), Value::String(app.db.get_setting("search_engine", "google")));
+                                        map.insert("shield_enabled".into(), Value::String(app.db.get_setting("shield_enabled", "true")));
+                                        map.insert("https_only".into(), Value::String(app.db.get_setting("https_only", "true")));
+                                        map.insert("show_bookmarks_bar".into(), Value::String(app.db.get_setting("show_bookmarks_bar", "true")));
+                                        let json = serde_json::to_string(&Value::Object(map)).unwrap_or_default();
+                                        if let Some(wv) = tab_webviews.get(&tab_id) {
+                                            let script = format!("if (window.__nexora_render_settings) window.__nexora_render_settings({});", json);
+                                            let _ = wv.evaluate_script(&script);
+                                        }
+                                    }
+                                    "set_setting" => {
+                                        if let (Some(k), Some(val)) = (v.get("key").and_then(|k| k.as_str()), v.get("value").and_then(|val| val.as_str())) {
+                                            let _ = app.db.set_setting(k, val);
+                                        }
+                                    }
+                                    "navigate" => {
+                                        if let Some(url) = v.get("url").and_then(|u| u.as_str()) {
+                                            let _ = proxy.send_event(BrowserAction::Navigate(url.to_string()));
+                                            let script = format!("if (window.__nexora_update_url) window.__nexora_update_url({:?});", url);
+                                            let _ = toolbar_webview.evaluate_script(&script);
+                                        }
+                                    }
+                                    _ => {}
+                                }
+                            }
+                        }
+                    }
+                    BrowserAction::ToggleBookmark { url, title } => {
+                        let is_bm = app.db.is_bookmarked(&url);
+                        if is_bm {
+                            let _ = app.db.remove_bookmark(&url);
+                            let _ = toolbar_webview.evaluate_script("if (window.__nexora_set_bookmarked) window.__nexora_set_bookmarked(false);");
+                        } else {
+                            let _ = app.db.add_bookmark(&url, &title, "Bookmarks Bar");
+                            let _ = toolbar_webview.evaluate_script("if (window.__nexora_set_bookmarked) window.__nexora_set_bookmarked(true);");
+                        }
+                        if let Ok(bookmarks) = app.db.get_bookmarks() {
+                            if let Ok(json) = serde_json::to_string(&bookmarks) {
+                                let script = format!("if (window.__nexora_render_bookmarks_bar) window.__nexora_render_bookmarks_bar({});", json);
+                                let _ = toolbar_webview.evaluate_script(&script);
+                            }
+                        }
+                    }
+                    BrowserAction::OmniboxQuery(query) => {
+                        let suggestions = app.db.get_omnibox_suggestions(&query).unwrap_or_default();
+                        if let Ok(json) = serde_json::to_string(&suggestions) {
+                            let script = format!("if (window.__nexora_render_omnibox_suggestions) window.__nexora_render_omnibox_suggestions({});", json);
+                            let _ = toolbar_webview.evaluate_script(&script);
+                        }
+                    }
+                    BrowserAction::GetBookmarksBar => {
+                        if let Ok(bookmarks) = app.db.get_bookmarks() {
+                            if let Ok(json) = serde_json::to_string(&bookmarks) {
+                                let script = format!("if (window.__nexora_render_bookmarks_bar) window.__nexora_render_bookmarks_bar({});", json);
+                                let _ = toolbar_webview.evaluate_script(&script);
+                            }
+                        }
+                    }
+                    BrowserAction::ToggleBookmarksBar(show) => {
+                        current_toolbar_logical_h = if show { TOOLBAR_LOGICAL_HEIGHT_DEFAULT } else { TOOLBAR_LOGICAL_HEIGHT_COLLAPSED };
+                        let sf = window.scale_factor();
+                        let toolbar_h = (current_toolbar_logical_h * sf) as u32;
+                        let inner = window.inner_size();
+                        let content_h = inner.height.saturating_sub(toolbar_h);
+
+                        content_bounds = Rect {
+                            position: PhysicalPosition::new(0, toolbar_h as i32).into(),
+                            size: PhysicalSize::new(inner.width, content_h).into(),
+                        };
+
+                        let _ = toolbar_webview.set_bounds(Rect {
+                            position: PhysicalPosition::new(0, 0).into(),
+                            size: PhysicalSize::new(inner.width, toolbar_h).into(),
+                        });
+
+                        for (_, wv) in tab_webviews.iter() {
+                            let _ = wv.set_bounds(content_bounds);
+                        }
+                    }
+                    BrowserAction::SetZoom(level) => {
+                        if let Some(active_wv) = tab_webviews.get(&active_tab_id) {
+                            let factor = (level as f64) / 100.0;
+                            let script = format!("document.body.style.zoom = '{}';", factor);
+                            let _ = active_wv.evaluate_script(&script);
+                        }
                     }
                     BrowserAction::UpdateUrl(url) => {
                         let script = format!("if (window.__nexora_update_url) window.__nexora_update_url({:?});", url);
@@ -251,19 +600,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 ..
             } => {
                 let sf = window.scale_factor();
-                let toolbar_h = (TOOLBAR_LOGICAL_HEIGHT * sf) as u32;
+                let toolbar_h = (current_toolbar_logical_h * sf) as u32;
                 let new_width = physical_size.width;
                 let new_height = physical_size.height;
                 let content_h = new_height.saturating_sub(toolbar_h);
+
+                content_bounds = Rect {
+                    position: PhysicalPosition::new(0, toolbar_h as i32).into(),
+                    size: PhysicalSize::new(new_width, content_h).into(),
+                };
 
                 let _ = toolbar_webview.set_bounds(Rect {
                     position: PhysicalPosition::new(0, 0).into(),
                     size: PhysicalSize::new(new_width, toolbar_h).into(),
                 });
-                let _ = content_webview.set_bounds(Rect {
-                    position: PhysicalPosition::new(0, toolbar_h as i32).into(),
-                    size: PhysicalSize::new(new_width, content_h).into(),
-                });
+
+                for (_, wv) in tab_webviews.iter() {
+                    let _ = wv.set_bounds(content_bounds);
+                }
             }
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,

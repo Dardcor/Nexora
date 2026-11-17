@@ -5,12 +5,13 @@ use std::sync::Arc;
 use crate::config::NexoraConfig;
 use crate::engine::{BrowserTab, TabFreezer};
 use crate::security::NexoraSecurityManager;
-use crate::vault::LocalVault;
+use crate::vault::{LocalVault, NexoraDatabase};
 
 pub struct NexoraApp {
     pub config: NexoraConfig,
     pub security: Arc<NexoraSecurityManager>,
     pub vault: Arc<LocalVault>,
+    pub db: Arc<NexoraDatabase>,
     pub tabs: Arc<RwLock<Vec<BrowserTab>>>,
     pub active_tab_id: RwLock<Option<String>>,
     pub freezer: TabFreezer,
@@ -20,8 +21,9 @@ impl NexoraApp {
     pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
         let config = NexoraConfig::default();
         let security = Arc::new(NexoraSecurityManager::new());
-        // Initialize encrypted vault using standard local machine profile
+        // Initialize encrypted vault and local offline SQLite database
         let vault = Arc::new(LocalVault::init("nexora_master_local_vault_key", None)?);
+        let db = Arc::new(NexoraDatabase::init(None)?);
         let freezer = TabFreezer::new(config.hibernation_timeout_secs);
 
         let initial_tab = BrowserTab::new(
@@ -38,6 +40,7 @@ impl NexoraApp {
             config,
             security,
             vault,
+            db,
             tabs,
             active_tab_id,
             freezer,
@@ -84,8 +87,9 @@ impl NexoraApp {
             tab.title = filtered_url.clone();
             tab.touch();
 
-            // Record visit in zero-knowledge local encrypted vault
+            // Record visit in zero-knowledge local encrypted vault and local SQLite
             self.vault.record_visit(filtered_url.clone(), tab.title.clone(), tab.space_id.clone());
+            let _ = self.db.record_visit(&filtered_url, &tab.title, &tab.space_id);
         }
 
         Some(filtered_url)

@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bookmarks - Nexora</title>
+    <style>
+        :root {
+            --bg-base: #1e1f22;
+            --bg-surface: #2b2d31;
+            --bg-hover: #35373c;
+            --border-subtle: #383a40;
+            --text-primary: #f2f3f5;
+            --text-secondary: #949ba4;
+            --accent-blue: #5865f2;
+            --accent-red: #da373c;
+            --font-stack: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-base);
+            color: var(--text-primary);
+            font-family: var(--font-stack);
+            font-size: 13px;
+            display: flex;
+            min-height: 100vh;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 250px;
+            background-color: var(--bg-surface);
+            border-right: 1px solid var(--border-subtle);
+            padding: 1.5rem 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            flex-shrink: 0;
+        }
+
+        .sidebar-brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .sidebar-brand svg {
+            color: #eab308;
+        }
+
+        .sidebar-menu {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .sidebar-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 8px 12px;
+            border-radius: 6px;
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.1s ease, color 0.1s ease;
+        }
+
+        .sidebar-item:hover, .sidebar-item.active {
+            background-color: var(--bg-hover);
+            color: var(--text-primary);
+        }
+
+        .sidebar-item.active {
+            background-color: rgba(88, 101, 242, 0.15);
+            color: var(--accent-blue);
+        }
+
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            padding: 2rem 2.5rem;
+            overflow-y: auto;
+            max-width: 900px;
+        }
+
+        .header-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1.5rem;
+            gap: 1rem;
+        }
+
+        .page-title {
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        .bookmarks-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+            gap: 12px;
+        }
+
+        .bookmark-card {
+            background-color: var(--bg-surface);
+            border: 1px solid var(--border-subtle);
+            border-radius: 8px;
+            padding: 12px 14px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            cursor: pointer;
+            position: relative;
+            transition: background 0.1s ease, border-color 0.1s ease;
+        }
+
+        .bookmark-card:hover {
+            background-color: var(--bg-hover);
+            border-color: rgba(255, 255, 255, 0.15);
+        }
+
+        .bookmark-star {
+            color: #eab308;
+            flex-shrink: 0;
+        }
+
+        .bookmark-info {
+            flex: 1;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .bookmark-name {
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            color: var(--text-primary);
+        }
+
+        .bookmark-url {
+            font-size: 11px;
+            color: var(--text-secondary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .bookmark-delete-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 0.1s ease, color 0.1s ease;
+        }
+
+        .bookmark-card:hover .bookmark-delete-btn {
+            opacity: 1;
+        }
+
+        .bookmark-delete-btn:hover {
+            color: var(--accent-red);
+        }
+
+        .empty-state {
+            grid-column: 1 / -1;
+            padding: 4rem 2rem;
+            text-align: center;
+            color: var(--text-secondary);
+        }
+    </style>
+</head>
+<body>
+    <aside class="sidebar">
+        <div class="sidebar-brand">
+            <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M3.75 2a.75.75 0 0 0-.75.75v11.5a.75.75 0 0 0 1.28.53L8 11.23l3.72 3.55a.75.75 0 0 0 1.28-.53V2.75a.75.75 0 0 0-.75-.75h-8.5Z"/>
+            </svg>
+            <span>Bookmarks</span>
+        </div>
+        <nav class="sidebar-menu">
+            <a class="sidebar-item" href="nexora://history">Chrome History</a>
+            <a class="sidebar-item active" href="nexora://bookmarks">Bookmarks Bar</a>
+            <a class="sidebar-item" href="nexora://downloads">Downloads</a>
+            <a class="sidebar-item" href="nexora://settings">Settings</a>
+        </nav>
+    </aside>
+
+    <main class="main-content">
+        <header class="header-row">
+            <h1 class="page-title">Bookmarks Bar</h1>
+        </header>
+
+        <section class="bookmarks-grid" id="bookmarks-container">
+            <!-- Dynamically populated from SQLite -->
+        </section>
+    </main>
+
+    <script>
+        function sendIpc(msg) {
+            if (window.ipc) {
+                window.ipc.postMessage(JSON.stringify(msg));
+            }
+        }
+
+        const container = document.getElementById('bookmarks-container');
+
+        function renderBookmarks(bookmarks) {
+            if (!bookmarks || bookmarks.length === 0) {
+                container.innerHTML = '<div class="empty-state">No bookmarks saved. Click the star icon (★) in the Omnibox to bookmark any page.</div>';
+                return;
+            }
+
+            container.innerHTML = '';
+            bookmarks.forEach(b => {
+                const card = document.createElement('div');
+                card.className = 'bookmark-card';
+                card.innerHTML = `
+                    <svg class="bookmark-star" width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                        <path d="m8 1.75 2.122 4.298 4.745.69-3.434 3.346.81 4.726L8 12.585l-4.243 2.225.81-4.726L1.133 6.738l4.745-.69L8 1.75Z"/>
+                    </svg>
+                    <div class="bookmark-info">
+                        <span class="bookmark-name" title="${b.title}">${b.title || b.url}</span>
+                        <span class="bookmark-url">${b.url}</span>
+                    </div>
+                    <button class="bookmark-delete-btn" title="Delete bookmark" data-url="${b.url}">
+                        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                            <path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.749.749 0 0 1 1.275.326.749.749 0 0 1-.215.734L9.06 8l3.22 3.22a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L8 9.06l-3.22 3.22a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z"/>
+                        </svg>
+                    </button>
+                `;
+
+                card.addEventListener('click', (e) => {
+                    if (e.target.closest('.bookmark-delete-btn')) return;
+                    sendIpc({ type: 'navigate', url: b.url });
+                });
+
+                card.querySelector('.bookmark-delete-btn').addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    sendIpc({ type: 'delete_bookmark', url: b.url });
+                    card.remove();
+                });
+
+                container.appendChild(card);
+            });
+        }
+
+        window.__nexora_render_bookmarks = renderBookmarks;
+
+        // Request bookmarks
+        sendIpc({ type: 'get_bookmarks' });
+    </script>
+</body>
+</html>
