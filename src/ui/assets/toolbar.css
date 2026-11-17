@@ -1,16 +1,17 @@
 :root {
-    --bg-base: #0d1117;
-    --bg-surface: #161b22;
-    --bg-active: #21262d;
-    --bg-hover: #30363d;
-    --border-color: #30363d;
-    --border-focus: #58a6ff;
-    --text-primary: #f0f6fc;
-    --text-muted: #8b949e;
-    --accent-blue: #58a6ff;
-    --accent-green: #3fb950;
-    --accent-red: #f85149;
-    --font-stack: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;
+    --bg-tabstrip: #1e1f22;
+    --bg-toolbar: #2b2d31;
+    --bg-omnibox: #1e1f22;
+    --bg-omnibox-hover: #1b1c1e;
+    --border-omnibox: #383a40;
+    --border-focus: #5865f2;
+    --text-normal: #dbdee1;
+    --text-muted: #949ba4;
+    --text-bright: #ffffff;
+    --hover-bg: rgba(255, 255, 255, 0.07);
+    --active-bg: rgba(255, 255, 255, 0.12);
+    --shield-green: #23a55a;
+    --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
 * {
@@ -23,9 +24,9 @@ html, body {
     width: 100%;
     height: 100%;
     overflow: hidden;
-    background-color: var(--bg-surface);
-    color: var(--text-primary);
-    font-family: var(--font-stack);
+    background-color: var(--bg-tabstrip);
+    color: var(--text-normal);
+    font-family: var(--font-ui);
     user-select: none;
     font-size: 13px;
 }
@@ -33,15 +34,16 @@ html, body {
 button {
     font-family: inherit;
     cursor: pointer;
+    border: none;
+    background: transparent;
+    color: inherit;
 }
 
-.nexora-toolbar {
+.nexora-chrome {
     display: flex;
     flex-direction: column;
     width: 100%;
     height: 100%;
-    background-color: var(--bg-surface);
-    border-bottom: 1px solid var(--border-color);
 }
 
 /* Row 1: Tab Strip */
@@ -51,7 +53,24 @@ button {
     align-items: flex-end;
     padding: 0 8px;
     gap: 4px;
-    background-color: var(--bg-base);
+    background-color: var(--bg-tabstrip);
+}
+
+.tab-dropdown-btn {
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    color: var(--text-muted);
+    margin-bottom: 3px;
+    transition: background-color 0.1s ease, color 0.1s ease;
+}
+
+.tab-dropdown-btn:hover {
+    background-color: var(--hover-bg);
+    color: var(--text-normal);
 }
 
 .tab-strip {
@@ -67,46 +86,43 @@ button {
     display: none;
 }
 
-.browser-tab {
+.tab-item {
     display: flex;
     align-items: center;
-    max-width: 220px;
-    min-width: 120px;
+    max-width: 240px;
+    min-width: 130px;
     height: 32px;
     padding: 0 10px;
     gap: 8px;
     background-color: transparent;
-    border-radius: 6px 6px 0 0;
+    border-radius: 8px 8px 0 0;
     color: var(--text-muted);
     font-size: 12px;
     font-weight: 500;
     cursor: pointer;
-    border: 1px solid transparent;
-    border-bottom: none;
-    transition: background-color 0.1s ease, color 0.1s ease;
     position: relative;
+    transition: background-color 0.1s ease, color 0.1s ease;
 }
 
-.browser-tab:hover {
-    background-color: rgba(255, 255, 255, 0.04);
-    color: var(--text-primary);
+.tab-item:hover {
+    background-color: rgba(43, 45, 49, 0.5);
+    color: var(--text-normal);
 }
 
-.browser-tab.active {
-    background-color: var(--bg-surface);
-    color: var(--text-primary);
-    border-color: var(--border-color);
+.tab-item.active {
+    background-color: var(--bg-toolbar);
+    color: var(--text-bright);
 }
 
-.tab-icon {
-    width: 14px;
-    height: 14px;
+.tab-favicon {
+    width: 15px;
+    height: 15px;
     flex-shrink: 0;
-    color: var(--text-muted);
+    color: #58a6ff;
 }
 
-.browser-tab.active .tab-icon {
-    color: var(--accent-blue);
+.tab-item.active .tab-favicon {
+    color: #38bdf8;
 }
 
 .tab-title {
@@ -114,35 +130,44 @@ button {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    line-height: 1.2;
 }
 
-.tab-close {
-    width: 16px;
-    height: 16px;
-    border-radius: 3px;
+.tab-close-btn {
+    width: 18px;
+    height: 18px;
+    border-radius: 4px;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: transparent;
-    border: none;
     color: var(--text-muted);
     font-size: 14px;
     line-height: 1;
-    opacity: 0.7;
-    transition: opacity 0.1s ease, background-color 0.1s ease;
+    opacity: 0.6;
+    transition: opacity 0.1s ease, background-color 0.1s ease, color 0.1s ease;
 }
 
-.tab-close:hover {
+.tab-close-btn:hover {
     opacity: 1;
-    background-color: var(--bg-hover);
-    color: var(--text-primary);
+    background-color: var(--hover-bg);
+    color: var(--text-bright);
 }
 
 .new-tab-btn {
     width: 28px;
     height: 28px;
-    margin-bottom: 2px;
-    border-radius: 4px;
+    margin-bottom: 3px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+    transition: background-color 0.1s ease, color 0.1s ease;
+}
+
+.new-tab-btn:hover {
+    background-color: var(--hover-bg);
+    color: var(--text-normal);
 }
 
 /* Row 2: Navigation & Omnibox */
@@ -152,40 +177,37 @@ button {
     align-items: center;
     padding: 0 10px;
     gap: 8px;
-    background-color: var(--bg-surface);
+    background-color: var(--bg-toolbar);
 }
 
-.nav-buttons {
+.nav-actions {
     display: flex;
     align-items: center;
     gap: 2px;
 }
 
-.icon-btn {
-    width: 30px;
-    height: 30px;
+.nav-circle-btn {
+    width: 28px;
+    height: 28px;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: transparent;
-    border: none;
-    border-radius: 6px;
+    border-radius: 50%;
     color: var(--text-muted);
     transition: background-color 0.12s ease, color 0.12s ease;
 }
 
-.icon-btn:hover {
-    background-color: var(--bg-hover);
-    color: var(--text-primary);
+.nav-circle-btn:hover {
+    background-color: var(--hover-bg);
+    color: var(--text-bright);
 }
 
-.icon-btn:active {
-    background-color: #3b4350;
+.nav-circle-btn:active {
+    background-color: var(--active-bg);
 }
 
-.icon-btn:focus-visible {
+.nav-circle-btn:focus-visible {
     outline: 2px solid var(--border-focus);
-    outline-offset: 1px;
 }
 
 /* Omnibox */
@@ -195,30 +217,34 @@ button {
     align-items: center;
 }
 
-.omnibox-container {
+.omnibox-shell {
     display: flex;
     align-items: center;
     width: 100%;
-    max-width: 800px;
     height: 30px;
-    background-color: var(--bg-base);
-    border: 1px solid var(--border-color);
-    border-radius: 6px;
-    padding: 0 8px;
+    background-color: var(--bg-omnibox);
+    border: 1px solid var(--border-omnibox);
+    border-radius: 8px;
+    padding: 0 10px;
     gap: 8px;
-    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.omnibox-container:focus-within {
+.omnibox-shell:hover {
+    background-color: var(--bg-omnibox-hover);
+}
+
+.omnibox-shell:focus-within {
     border-color: var(--border-focus);
-    box-shadow: 0 0 0 1px var(--border-focus);
+    box-shadow: 0 0 0 2px rgba(88, 101, 242, 0.25);
+    background-color: var(--bg-omnibox);
 }
 
-.security-badge {
+.omnibox-left-icon {
     display: flex;
     align-items: center;
     justify-content: center;
-    color: var(--accent-green);
+    color: var(--text-muted);
     flex-shrink: 0;
 }
 
@@ -227,65 +253,78 @@ button {
     background: transparent;
     border: none;
     outline: none;
-    color: var(--text-primary);
+    color: var(--text-bright);
     font-size: 13px;
-    line-height: 1.4;
+    font-family: inherit;
+    letter-spacing: -0.01em;
 }
 
 .omnibox-input::placeholder {
     color: var(--text-muted);
 }
 
-.omnibox-actions {
+.omnibox-right-tools {
     display: flex;
     align-items: center;
     gap: 4px;
 }
 
-.action-btn {
+.omnibox-tool-btn {
     display: flex;
     align-items: center;
     justify-content: center;
     width: 22px;
     height: 22px;
-    background: transparent;
-    border: none;
     border-radius: 4px;
     color: var(--text-muted);
     transition: color 0.1s ease, background-color 0.1s ease;
 }
 
-.action-btn:hover {
-    color: var(--text-primary);
-    background-color: var(--bg-hover);
+.omnibox-tool-btn:hover {
+    color: var(--text-bright);
+    background-color: var(--hover-bg);
 }
 
-/* Shield Button */
-.shield-container {
+/* Profile / Shield Actions */
+.profile-actions {
     display: flex;
     align-items: center;
+    gap: 8px;
 }
 
-.shield-btn {
+.shield-pill-btn {
     display: flex;
     align-items: center;
-    gap: 6px;
-    height: 28px;
+    gap: 5px;
+    height: 26px;
     padding: 0 8px;
-    background-color: var(--bg-base);
-    border: 1px solid var(--border-color);
-    border-radius: 6px;
-    color: var(--accent-green);
-    font-size: 12px;
+    background-color: rgba(35, 165, 90, 0.12);
+    border: 1px solid rgba(35, 165, 90, 0.3);
+    border-radius: 13px;
+    color: var(--shield-green);
+    font-size: 11px;
     font-weight: 600;
     transition: background-color 0.12s ease;
 }
 
-.shield-btn:hover {
-    background-color: var(--bg-hover);
+.shield-pill-btn:hover {
+    background-color: rgba(35, 165, 90, 0.2);
 }
 
-.shield-counter {
-    color: var(--text-primary);
+.shield-badge-text {
     font-size: 11px;
+    color: var(--text-bright);
+}
+
+.profile-avatar {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background-color: #5865f2;
+    color: #ffffff;
+    font-size: 12px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }

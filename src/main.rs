@@ -6,7 +6,7 @@ use tao::{
     window::WindowBuilder,
 };
 use wry::{
-    dpi::{LogicalPosition, LogicalSize},
+    dpi::{PhysicalPosition, PhysicalSize},
     Rect, WebViewBuilder,
 };
 
@@ -14,7 +14,8 @@ use nexora::app::NexoraApp;
 use nexora::security::AntiFingerprint;
 use nexora::ui::NexoraUiAssets;
 
-const TOOLBAR_HEIGHT: u32 = 76;
+const TOOLBAR_LOGICAL_HEIGHT: f64 = 78.0;
+const DESKTOP_USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 
 #[derive(Debug, Clone)]
 pub enum BrowserAction {
@@ -36,24 +37,31 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let event_loop = EventLoopBuilder::<BrowserAction>::with_user_event().build();
     let proxy: EventLoopProxy<BrowserAction> = event_loop.create_proxy();
 
+    let icon_bytes = include_bytes!("../assets/icon-32.rgba");
+    let window_icon = tao::window::Icon::from_rgba(icon_bytes.to_vec(), 32, 32).ok();
+
     let window = WindowBuilder::new()
         .with_title("Nexora")
+        .with_window_icon(window_icon)
         .with_inner_size(tao::dpi::LogicalSize::new(1280.0, 800.0))
         .with_min_inner_size(tao::dpi::LogicalSize::new(600.0, 400.0))
         .build(&event_loop)?;
 
-    let initial_size = window.inner_size().to_logical::<u32>(window.scale_factor());
-    let width = initial_size.width;
-    let height = initial_size.height;
+    let scale_factor = window.scale_factor();
+    let initial_physical = window.inner_size();
+    let initial_width = initial_physical.width;
+    let initial_height = initial_physical.height;
+    let initial_toolbar_h = (TOOLBAR_LOGICAL_HEIGHT * scale_factor) as u32;
+    let initial_content_h = initial_height.saturating_sub(initial_toolbar_h);
 
-    // 1. Toolbar WebView (Tabs, Omnibox, Shield Indicator)
+    // 1. Toolbar WebView (Tabs & Omnibox Header)
     let proxy_toolbar = proxy.clone();
     let toolbar_html = NexoraUiAssets::get_inlined_toolbar_html();
 
     let toolbar_webview = WebViewBuilder::new()
         .with_bounds(Rect {
-            position: LogicalPosition::new(0, 0).into(),
-            size: LogicalSize::new(width, TOOLBAR_HEIGHT).into(),
+            position: PhysicalPosition::new(0, 0).into(),
+            size: PhysicalSize::new(initial_width, initial_toolbar_h).into(),
         })
         .with_html(toolbar_html)
         .with_ipc_handler(move |req: wry::http::Request<String>| {
@@ -93,9 +101,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
         })
-        .build(&window)?;
+        .build_as_child(&window)?;
 
-    // 2. Content WebView (Full Native Web Rendering - No iframe restrictions)
+    // 2. Content WebView (Full Native Web Rendering)
     let proxy_load = proxy.clone();
     let proxy_title = proxy.clone();
     let proxy_nav = proxy.clone();
@@ -103,13 +111,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let stealth_script = AntiFingerprint::get_stealth_injection_script();
     let home_html = NexoraUiAssets::get_standalone_home_html();
 
-    let content_height = height.saturating_sub(TOOLBAR_HEIGHT);
-
     let content_webview = WebViewBuilder::new()
         .with_bounds(Rect {
-            position: LogicalPosition::new(0, TOOLBAR_HEIGHT).into(),
-            size: LogicalSize::new(width, content_height).into(),
+            position: PhysicalPosition::new(0, initial_toolbar_h as i32).into(),
+            size: PhysicalSize::new(initial_width, initial_content_h).into(),
         })
+        .with_user_agent(DESKTOP_USER_AGENT)
         .with_initialization_script(stealth_script)
         .with_html(home_html)
         .with_navigation_handler(move |url: String| -> bool {
@@ -133,7 +140,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_document_title_changed_handler(move |title: String| {
             let _ = proxy_title.send_event(BrowserAction::UpdateTitle(title));
         })
-        .build(&window)?;
+        .build_as_child(&window)?;
+
+    // Ensure bounds are set explicitly after window setup
+    let _ = toolbar_webview.set_bounds(Rect {
+        position: PhysicalPosition::new(0, 0).into(),
+        size: PhysicalSize::new(initial_width, initial_toolbar_h).into(),
+    });
+    let _ = content_webview.set_bounds(Rect {
+        position: PhysicalPosition::new(0, initial_toolbar_h as i32).into(),
+        size: PhysicalSize::new(initial_width, initial_content_h).into(),
+    });
 
     // Main Event Loop
     event_loop.run(move |event, _, control_flow| {
@@ -146,7 +163,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         if url == "nexora://home" || url.is_empty() {
                             let _ = content_webview.load_html(NexoraUiAssets::get_standalone_home_html());
                         } else {
-                            // Strip tracking params and inspect with security shield
                             if let Some(cleaned) = app.security.inspect_and_filter_url(&url) {
                                 let _ = content_webview.load_url(&cleaned);
                                 app.vault.record_visit(cleaned, url.clone(), "default".to_string());
@@ -166,7 +182,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         let _ = content_webview.load_html(NexoraUiAssets::get_standalone_home_html());
                     }
                     BrowserAction::SwitchTab(_) => {
-                        // In future multi-tab: switch webview buffer
+                        // Multi-tab buffer switch
                     }
                     BrowserAction::CloseTab(_) => {
                         // Handled in toolbar state
@@ -189,18 +205,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 event: WindowEvent::Resized(physical_size),
                 ..
             } => {
-                let size = physical_size.to_logical::<u32>(window.scale_factor());
-                let new_width = size.width;
-                let new_height = size.height;
-                let content_h = new_height.saturating_sub(TOOLBAR_HEIGHT);
+                let sf = window.scale_factor();
+                let toolbar_h = (TOOLBAR_LOGICAL_HEIGHT * sf) as u32;
+                let new_width = physical_size.width;
+                let new_height = physical_size.height;
+                let content_h = new_height.saturating_sub(toolbar_h);
 
                 let _ = toolbar_webview.set_bounds(Rect {
-                    position: LogicalPosition::new(0, 0).into(),
-                    size: LogicalSize::new(new_width, TOOLBAR_HEIGHT).into(),
+                    position: PhysicalPosition::new(0, 0).into(),
+                    size: PhysicalSize::new(new_width, toolbar_h).into(),
                 });
                 let _ = content_webview.set_bounds(Rect {
-                    position: LogicalPosition::new(0, TOOLBAR_HEIGHT).into(),
-                    size: LogicalSize::new(new_width, content_h).into(),
+                    position: PhysicalPosition::new(0, toolbar_h as i32).into(),
+                    size: PhysicalSize::new(new_width, content_h).into(),
                 });
             }
             Event::WindowEvent {

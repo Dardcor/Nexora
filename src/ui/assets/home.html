@@ -274,10 +274,9 @@
                     aria-label="Web address or search"
                 >
                 <select class="search-engine-select" id="engine-select" aria-label="Search provider">
+                    <option value="google" selected>Google Search</option>
                     <option value="direct">Direct Web / URL</option>
-                    <option value="brave">Brave Search</option>
                     <option value="duckduckgo">DuckDuckGo</option>
-                    <option value="google">Google</option>
                 </select>
             </form>
         </section>
@@ -354,15 +353,15 @@
                 targetUrl = 'http://' + val;
             } else {
                 switch(engine) {
-                    case 'google':
-                        targetUrl = 'https://www.google.com/search?q=' + encodeURIComponent(val);
-                        break;
                     case 'duckduckgo':
                         targetUrl = 'https://duckduckgo.com/?q=' + encodeURIComponent(val);
                         break;
-                    case 'brave':
+                    case 'direct':
+                        targetUrl = 'https://' + val;
+                        break;
+                    case 'google':
                     default:
-                        targetUrl = 'https://search.brave.com/search?q=' + encodeURIComponent(val);
+                        targetUrl = 'https://www.google.com/search?q=' + encodeURIComponent(val);
                         break;
                 }
             }

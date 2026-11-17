@@ -36,3 +36,7 @@ regex = "1.10"
 chrono = { version = "0.4", features = ["serde"] }
 directories = "5.0"
 uuid = { version = "1.10", features = ["v4", "serde"] }
+
+[build-dependencies]
+winres = "0.1"
+

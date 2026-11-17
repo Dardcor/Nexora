@@ -14,10 +14,9 @@
     const btnBack = document.getElementById('btn-back');
     const btnForward = document.getElementById('btn-forward');
     const btnReload = document.getElementById('btn-reload');
-    const btnHome = document.getElementById('btn-home');
     const omniboxForm = document.getElementById('omnibox-form');
     const omniboxInput = document.getElementById('omnibox-input');
-    const shieldCounter = document.getElementById('shield-counter');
+    const shieldCount = document.getElementById('shield-count');
 
     function sendIpc(msg) {
         if (window.ipc) {
@@ -32,21 +31,21 @@
         state.tabs.forEach(tab => {
             const isActive = tab.id === state.activeTabId;
             const tabEl = document.createElement('div');
-            tabEl.className = `browser-tab ${isActive ? 'active' : ''}`;
+            tabEl.className = `tab-item ${isActive ? 'active' : ''}`;
             tabEl.setAttribute('role', 'tab');
             tabEl.setAttribute('aria-selected', isActive ? 'true' : 'false');
             tabEl.dataset.id = tab.id;
 
             tabEl.innerHTML = `
-                <svg class="tab-icon" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                <svg class="tab-favicon" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
                     <path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0ZM1.5 8a6.5 6.5 0 1 1 13 0 6.5 6.5 0 0 1-13 0Zm7-5.46v10.92a6.51 6.51 0 0 1-3.25-1.46 6.51 6.51 0 0 1 0-8 6.51 6.51 0 0 1 3.25-1.46Z"/>
                 </svg>
                 <span class="tab-title">${escapeHtml(tab.title)}</span>
-                <button class="tab-close" title="Close Tab" aria-label="Close tab">&times;</button>
+                <button class="tab-close-btn" title="Close Tab" aria-label="Close tab">&times;</button>
             `;
 
             tabEl.addEventListener('click', (e) => {
-                if (e.target.classList.contains('tab-close')) {
+                if (e.target.classList.contains('tab-close-btn')) {
                     e.stopPropagation();
                     closeTab(tab.id);
                 } else {
@@ -62,7 +61,7 @@
         state.activeTabId = id;
         const activeTab = state.tabs.find(t => t.id === id);
         if (activeTab) {
-            omniboxInput.value = activeTab.url === 'nexora://home' ? '' : activeTab.url;
+            omniboxInput.value = (activeTab.url === 'nexora://home' || activeTab.url === '') ? '' : activeTab.url;
             sendIpc({ type: 'switch_tab', id: id, url: activeTab.url });
         }
         renderTabs();
@@ -97,22 +96,23 @@
         sendIpc({ type: 'close_tab', id: id });
     }
 
-    function navigate(input) {
-        const query = input.trim();
-        if (!query) return;
+    function navigate(rawInput) {
+        const input = rawInput.trim();
+        if (!input) return;
 
-        let targetUrl = query;
-        if (query === 'nexora://home' || query === 'about:blank') {
+        let targetUrl = input;
+        if (input === 'nexora://home' || input === 'about:blank') {
             targetUrl = 'nexora://home';
-        } else if (query.includes('.') && !query.includes(' ')) {
-            if (!query.startsWith('http://') && !query.startsWith('https://')) {
-                targetUrl = 'https://' + query;
-            }
-        } else if (query.startsWith('localhost') || query.startsWith('127.0.0.1')) {
-            targetUrl = 'http://' + query;
+        } else if (input.startsWith('http://') || input.startsWith('https://')) {
+            targetUrl = input;
+        } else if (input.startsWith('localhost') || input.startsWith('127.0.0.1')) {
+            targetUrl = 'http://' + input;
+        } else if (input.includes('.') && !input.includes(' ')) {
+            // Standard web address like supabase.com, github.com, etc.
+            targetUrl = 'https://' + input;
         } else {
-            // Standalone search: Use direct web search or direct navigation
-            targetUrl = 'https://search.brave.com/search?q=' + encodeURIComponent(query);
+            // Clean web search without bot challenges
+            targetUrl = 'https://www.google.com/search?q=' + encodeURIComponent(input);
         }
 
         const active = state.tabs.find(t => t.id === state.activeTabId);
@@ -139,20 +139,19 @@
     btnBack.addEventListener('click', () => sendIpc({ type: 'go_back' }));
     btnForward.addEventListener('click', () => sendIpc({ type: 'go_forward' }));
     btnReload.addEventListener('click', () => sendIpc({ type: 'reload' }));
-    btnHome.addEventListener('click', () => navigate('nexora://home'));
 
-    // Global hooks invoked from Rust
+    // Global Hooks called from Rust
     window.__nexora_update_url = function(url) {
         const active = state.tabs.find(t => t.id === state.activeTabId);
         if (active) {
             active.url = url;
-            omniboxInput.value = url === 'nexora://home' ? '' : url;
+            omniboxInput.value = (url === 'nexora://home' || url === 'about:blank') ? '' : url;
         }
     };
 
     window.__nexora_update_title = function(title) {
         const active = state.tabs.find(t => t.id === state.activeTabId);
-        if (active && title && title !== 'Untitled') {
+        if (active && title && title !== 'Untitled' && title !== 'about:blank') {
             active.title = title;
             renderTabs();
         }
@@ -160,7 +159,7 @@
 
     window.__nexora_update_shield = function(count) {
         state.shieldCount = count;
-        shieldCounter.textContent = count;
+        shieldCount.textContent = count;
     };
 
     // Keyboard Shortcuts
