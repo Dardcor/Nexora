@@ -46,14 +46,16 @@ button {
     height: 100%;
 }
 
-/* Row 1: Tab Strip */
+/* Row 1: Tab Strip (Top-most title row) */
 .tab-strip-row {
     height: 38px;
     display: flex;
     align-items: flex-end;
-    padding: 0 8px;
+    padding: 0 0 0 8px;
     gap: 4px;
     background-color: var(--bg-tabstrip);
+    position: relative;
+    user-select: none;
 }
 
 .tab-dropdown-btn {
@@ -76,7 +78,8 @@ button {
 .tab-strip {
     display: flex;
     align-items: flex-end;
-    flex: 1;
+    flex: 0 1 auto;
+    max-width: calc(100% - 190px);
     overflow-x: auto;
     overflow-y: hidden;
     gap: 2px;
@@ -84,6 +87,49 @@ button {
 
 .tab-strip::-webkit-scrollbar {
     display: none;
+}
+
+.window-drag-spacer {
+    flex: 1;
+    height: 100%;
+    min-width: 24px;
+    cursor: default;
+}
+
+/* Windows Native Caption Controls */
+.window-controls {
+    display: flex;
+    align-items: center;
+    height: 100%;
+    margin-left: auto;
+    flex-shrink: 0;
+}
+
+.win-btn {
+    width: 46px;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+    background: transparent;
+    border: none;
+    cursor: default;
+    transition: background-color 0.1s ease, color 0.1s ease;
+}
+
+.win-btn:hover {
+    background-color: rgba(255, 255, 255, 0.08);
+    color: var(--text-bright);
+}
+
+.win-btn-close:hover {
+    background-color: #e81123 !important;
+    color: #ffffff !important;
+}
+
+.win-btn-close:active {
+    background-color: #c4101f !important;
 }
 
 .tab-item {

@@ -5,6 +5,8 @@ use tao::{
     event_loop::{ControlFlow, EventLoopBuilder, EventLoopProxy},
     window::WindowBuilder,
 };
+#[cfg(target_os = "windows")]
+use tao::platform::windows::WindowBuilderExtWindows;
 use wry::{
     dpi::{PhysicalPosition, PhysicalSize},
     Rect, WebViewBuilder,
@@ -29,6 +31,10 @@ pub enum BrowserAction {
     UpdateUrl(String),
     UpdateTitle(String),
     UpdateShield(usize),
+    DragWindow,
+    MinimizeWindow,
+    ToggleMaximizeWindow,
+    CloseWindow,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -40,12 +46,26 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let icon_bytes = include_bytes!("../assets/icon-32.rgba");
     let window_icon = tao::window::Icon::from_rgba(icon_bytes.to_vec(), 32, 32).ok();
 
-    let window = WindowBuilder::new()
+    #[cfg(target_os = "windows")]
+    let builder = WindowBuilder::new()
         .with_title("Nexora")
         .with_window_icon(window_icon)
+        .with_decorations(false)
+        .with_undecorated_shadow(true)
+        .with_resizable(true)
         .with_inner_size(tao::dpi::LogicalSize::new(1280.0, 800.0))
-        .with_min_inner_size(tao::dpi::LogicalSize::new(600.0, 400.0))
-        .build(&event_loop)?;
+        .with_min_inner_size(tao::dpi::LogicalSize::new(600.0, 400.0));
+
+    #[cfg(not(target_os = "windows"))]
+    let builder = WindowBuilder::new()
+        .with_title("Nexora")
+        .with_window_icon(window_icon)
+        .with_decorations(false)
+        .with_resizable(true)
+        .with_inner_size(tao::dpi::LogicalSize::new(1280.0, 800.0))
+        .with_min_inner_size(tao::dpi::LogicalSize::new(600.0, 400.0));
+
+    let window = builder.build(&event_loop)?;
 
     let scale_factor = window.scale_factor();
     let initial_physical = window.inner_size();
@@ -95,6 +115,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             if let Some(id) = v.get("id").and_then(|i| i.as_str()) {
                                 let _ = proxy_toolbar.send_event(BrowserAction::SwitchTab(id.to_string()));
                             }
+                        }
+                        "drag_window" => {
+                            let _ = proxy_toolbar.send_event(BrowserAction::DragWindow);
+                        }
+                        "minimize_window" => {
+                            let _ = proxy_toolbar.send_event(BrowserAction::MinimizeWindow);
+                        }
+                        "toggle_maximize_window" => {
+                            let _ = proxy_toolbar.send_event(BrowserAction::ToggleMaximizeWindow);
+                        }
+                        "close_window" => {
+                            let _ = proxy_toolbar.send_event(BrowserAction::CloseWindow);
                         }
                         _ => {}
                     }
@@ -198,6 +230,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     BrowserAction::UpdateShield(count) => {
                         let script = format!("if (window.__nexora_update_shield) window.__nexora_update_shield({});", count);
                         let _ = toolbar_webview.evaluate_script(&script);
+                    }
+                    BrowserAction::DragWindow => {
+                        let _ = window.drag_window();
+                    }
+                    BrowserAction::MinimizeWindow => {
+                        window.set_minimized(true);
+                    }
+                    BrowserAction::ToggleMaximizeWindow => {
+                        window.set_maximized(!window.is_maximized());
+                    }
+                    BrowserAction::CloseWindow => {
+                        let _ = app.vault.save_history();
+                        *control_flow = ControlFlow::Exit;
                     }
                 }
             }

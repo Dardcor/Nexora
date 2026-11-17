@@ -10,6 +10,8 @@
     };
 
     const tabStrip = document.getElementById('tab-strip');
+    const tabStripRow = document.getElementById('tab-strip-row');
+    const dragSpacer = document.getElementById('drag-spacer');
     const btnNewTab = document.getElementById('btn-new-tab');
     const btnBack = document.getElementById('btn-back');
     const btnForward = document.getElementById('btn-forward');
@@ -17,6 +19,9 @@
     const omniboxForm = document.getElementById('omnibox-form');
     const omniboxInput = document.getElementById('omnibox-input');
     const shieldCount = document.getElementById('shield-count');
+    const btnWinMin = document.getElementById('btn-win-min');
+    const btnWinMax = document.getElementById('btn-win-max');
+    const btnWinClose = document.getElementById('btn-win-close');
 
     function sendIpc(msg) {
         if (window.ipc) {
@@ -181,6 +186,36 @@
             }
         }
     });
+
+    // Window Caption Controls
+    if (btnWinMin) {
+        btnWinMin.addEventListener('click', () => sendIpc({ type: 'minimize_window' }));
+    }
+    if (btnWinMax) {
+        btnWinMax.addEventListener('click', () => sendIpc({ type: 'toggle_maximize_window' }));
+    }
+    if (btnWinClose) {
+        btnWinClose.addEventListener('click', () => sendIpc({ type: 'close_window' }));
+    }
+
+    // Window Dragging & Double-Click Maximize
+    function setupDrag(element) {
+        if (!element) return;
+        element.addEventListener('mousedown', (e) => {
+            if (e.button === 0 && e.target === element) {
+                sendIpc({ type: 'drag_window' });
+            }
+        });
+        element.addEventListener('dblclick', (e) => {
+            if (e.target === element) {
+                sendIpc({ type: 'toggle_maximize_window' });
+            }
+        });
+    }
+
+    setupDrag(dragSpacer);
+    setupDrag(tabStripRow);
+    setupDrag(tabStrip);
 
     renderTabs();
 })();
