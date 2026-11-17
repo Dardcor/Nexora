@@ -33,7 +33,7 @@ impl Default for NexoraConfig {
         Self {
             search_engine: SearchEngine::DuckDuckGo,
             dark_mode: true,
-            hibernation_timeout_secs: 300, // 5 minutes default
+            hibernation_timeout_secs: 300,
             shield_enabled: true,
             anti_fingerprint_enabled: true,
             homepage: "nexora://newtab".to_string(),

@@ -781,6 +781,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             active_tab_id = id.clone();
                             app.switch_tab(&id);
                             bring_toolbar_to_top();
+
+                            if let Some(curr_wv) = tab_webviews.get(&id) {
+                                let nav_script = r#"
+                                    (function() {
+                                        try {
+                                            let canBack = window.history.length > 1;
+                                            if (window.ipc) {
+                                                window.ipc.postMessage(JSON.stringify({
+                                                    type: 'nav_state_changed',
+                                                    can_go_back: canBack,
+                                                    can_go_forward: false
+                                                }));
+                                            }
+                                        } catch(e) {}
+                                    })();
+                                "#;
+                                let _ = curr_wv.evaluate_script(nav_script);
+                            }
                         }
                     }
                     BrowserAction::CloseTab(id) => {
@@ -876,6 +894,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             let _ = toolbar_webview.evaluate_script("if (window.__nexora_page_loading) window.__nexora_page_loading(false);");
                         }
 
+                        if let Some(wv) = tab_webviews.get(&tab_id) {
+                            let nav_script = r#"
+                                (function() {
+                                    try {
+                                        let canBack = window.history.length > 1;
+                                        if (window.ipc) {
+                                            window.ipc.postMessage(JSON.stringify({
+                                                type: 'nav_state_changed',
+                                                can_go_back: canBack,
+                                                can_go_forward: false
+                                            }));
+                                        }
+                                    } catch(e) {}
+                                })();
+                            "#;
+                            let _ = wv.evaluate_script(nav_script);
+                        }
+
                         if effective_url.starts_with("http://") || effective_url.starts_with("https://") {
                             if let Some(wv) = tab_webviews.get(&tab_id) {
                                 let favicon_script = r#"
@@ -958,6 +994,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                                     let _ = proxy.send_event(BrowserAction::GetProfiles);
                                                 }
                                             }
+                                        }
+                                    }
+                                    "nav_state_changed" => {
+                                        let can_back = v.get("can_go_back").and_then(|b| b.as_bool()).unwrap_or(false);
+                                        let can_forward = v.get("can_go_forward").and_then(|f| f.as_bool()).unwrap_or(false);
+                                        if tab_id == active_tab_id {
+                                            let script = format!("if (window.__nexora_update_nav_state) window.__nexora_update_nav_state({}, {});", can_back, can_forward);
+                                            let _ = toolbar_webview.evaluate_script(&script);
                                         }
                                     }
                                     "get_history" => {

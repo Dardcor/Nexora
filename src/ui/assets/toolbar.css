@@ -89,7 +89,8 @@ button {
 .tab-strip {
     display: flex;
     align-items: flex-end;
-    flex: 1;
+    flex: 0 1 auto;
+    max-width: calc(100% - 170px);
     height: 100%;
     overflow-x: auto;
     overflow-y: hidden;
@@ -105,9 +106,10 @@ button {
     display: flex;
     align-items: center;
     height: 32px;
-    min-width: 80px;
-    max-width: 200px;
-    flex: 1;
+    width: 200px;
+    min-width: 60px;
+    max-width: 240px;
+    flex: 0 1 200px;
     padding: 0 8px 0 10px;
     border-radius: 8px 8px 0 0;
     background-color: transparent;
@@ -116,6 +118,15 @@ button {
     cursor: pointer;
     position: relative;
     transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.tab-item.pinned {
+    width: 38px;
+    min-width: 38px;
+    max-width: 38px;
+    padding: 0;
+    justify-content: center;
+    flex: 0 0 38px;
 }
 
 .tab-item:hover {
@@ -189,6 +200,7 @@ button {
     color: var(--text-muted);
     transition: background-color 0.1s ease, color 0.1s ease;
     flex-shrink: 0;
+    margin-left: 2px;
 }
 
 .new-tab-btn:hover {
@@ -197,7 +209,8 @@ button {
 }
 
 .window-drag-spacer {
-    flex: 0 1 60px;
+    flex: 1 1 auto;
+    min-width: 32px;
     height: 100%;
 }
 
@@ -257,9 +270,27 @@ button {
     transition: background-color 0.1s ease, color 0.1s ease;
 }
 
+.nav-circle-btn:disabled,
+.nav-circle-btn[disabled] {
+    opacity: 0.38;
+    cursor: default;
+    pointer-events: none;
+}
+
 .nav-circle-btn:hover {
     background-color: var(--hover-bg);
     color: var(--text-normal);
+}
+
+.zoom-badge-btn {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 0 6px;
+    border-radius: 10px;
+    background-color: var(--hover-bg);
+    color: var(--accent);
+    height: 22px;
+    width: auto;
 }
 
 .omnibox-form {

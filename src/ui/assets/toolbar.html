@@ -78,6 +78,9 @@
                     >
 
                     <div class="omnibox-right-tools">
+                        <button type="button" class="omnibox-tool-btn zoom-badge-btn" id="btn-zoom-reset" title="Reset Zoom (Ctrl+0)" aria-label="Zoom level" style="display: none;">
+                            <span id="zoom-badge-text">100%</span>
+                        </button>
                         <button type="button" class="omnibox-tool-btn" id="btn-reader" title="Toggle Reader Mode (Alt+R)" aria-label="Reader Mode">
                             <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
                                 <path d="M1 2.828c.885-.37 2.154-.769 3.388-.893 1.33-.134 2.458.063 3.112.752v9.746c-.935-.53-2.12-.603-3.213-.493-1.18.12-2.37.461-3.287.811V2.828zm7.5-.141c.654-.689 1.782-.886 3.112-.752 1.234.124 2.503.523 3.388.893v9.923c-.918-.35-2.107-.692-3.287-.81-1.094-.111-2.278-.039-3.213.492V2.687zM8 1.783C7.015.936 5.587.81 4.287.94c-1.514.153-3.042.672-3.994 1.105A.5.5 0 0 0 0 2.5v11a.5.5 0 0 0 .707.455c.882-.4 2.303-.881 3.68-1.02 1.409-.142 2.59.087 3.223.877a.5.5 0 0 0 .78 0c.633-.79 1.814-1.019 3.222-.877 1.378.139 2.8.62 3.681 1.02A.5.5 0 0 0 16 13.5v-11a.5.5 0 0 0-.293-.455c-.952-.433-2.48-.952-3.994-1.105C10.413.809 8.985.936 8 1.783z"/>
@@ -100,6 +103,13 @@
                         <path fill-rule="evenodd" d="m8.47 1.077 5.5 2.2a.75.75 0 0 1 .47.697v4.776c0 3.967-2.67 7.025-5.94 8.2a.75.75 0 0 1-.56 0C4.67 15.775 2 12.717 2 8.75V3.974a.75.75 0 0 1 .47-.697l5.5-2.2a.75.75 0 0 1 .56 0ZM3.5 4.542v4.208c0 3.256 2.127 5.86 4.5 6.942 2.373-1.082 4.5-3.686 4.5-6.942V4.542L8 2.742 3.5 4.542Z"/>
                     </svg>
                     <span class="shield-badge-text" id="shield-count">0</span>
+                </button>
+
+                <button class="nav-circle-btn" id="btn-downloads" title="Downloads (Ctrl+J)" aria-label="Downloads">
+                    <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                        <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/>
+                        <path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"/>
+                    </svg>
                 </button>
 
                 <button class="profile-btn" id="btn-profile" title="Nexora Profile" aria-label="Profile">
