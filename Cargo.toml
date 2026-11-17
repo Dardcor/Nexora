@@ -1,0 +1,38 @@
+[package]
+name = "nexora"
+version = "0.1.0"
+edition = "2021"
+authors = ["Dardcor <https://github.com/Dardcor>"]
+description = "Nexora: The ultra-lightweight, local-first, memory-safe, multi-layered security web browser built in Rust."
+repository = "https://github.com/Dardcor/Nexora"
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+keywords = ["browser", "rust", "lightweight", "privacy", "security"]
+categories = ["web-programming", "gui"]
+
+[dependencies]
+# Windowing & Webview
+wry = "0.47"
+tao = "0.30"
+
+# Async & Concurrency
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "macros", "time"] }
+parking_lot = "0.12"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Security & Cryptography (Zero-Knowledge Local Vault)
+aes-gcm = "0.10"
+argon2 = "0.5"
+rand = "0.8"
+sha2 = "0.10"
+base64 = "0.22"
+
+# Utilities
+url = "2.5"
+regex = "1.10"
+chrono = { version = "0.4", features = ["serde"] }
+directories = "5.0"
+uuid = { version = "1.10", features = ["v4", "serde"] }
