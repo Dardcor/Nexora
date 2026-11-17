@@ -7,7 +7,7 @@ use tao::{
     window::WindowBuilder,
 };
 #[cfg(target_os = "windows")]
-use tao::platform::windows::WindowBuilderExtWindows;
+use wry::platform::windows::WebViewExtWindows;
 use wry::{
     dpi::{PhysicalPosition, PhysicalSize},
     Rect, WebViewBuilder,
