@@ -311,12 +311,8 @@
     // 3-Dot More Menu Click
     btnMoreMenu.addEventListener('click', (e) => {
         e.stopPropagation();
-        const isOpen = moreMenuDropdown.classList.contains('show');
         closeOverlays();
-        if (!isOpen) {
-            moreMenuDropdown.classList.add('show');
-            expandOverlay(360);
-        }
+        sendIpc({ type: 'open_more_menu' });
     });
 
     // Site Security Popover Click
@@ -412,6 +408,13 @@
 
     // Keyboard Shortcuts
     document.addEventListener('keydown', (e) => {
+        if (e.altKey && (e.key === 'f' || e.key === 'F' || e.key === 'e' || e.key === 'E')) {
+            e.preventDefault();
+            closeOverlays();
+            sendIpc({ type: 'open_more_menu' });
+            return;
+        }
+
         if (e.ctrlKey) {
             if (e.key === 't' || e.key === 'T') {
                 e.preventDefault();
@@ -441,6 +444,15 @@
             } else if (e.shiftKey && (e.key === 'O' || e.key === 'o')) {
                 e.preventDefault();
                 navigate('nexora://bookmarks');
+            } else if (e.key === '=' || e.key === '+') {
+                e.preventDefault();
+                window.__nexora_zoom_in();
+            } else if (e.key === '-' || e.key === '_') {
+                e.preventDefault();
+                window.__nexora_zoom_out();
+            } else if (e.key === '0') {
+                e.preventDefault();
+                window.__nexora_zoom_reset();
             }
         } else if (e.key === 'Escape') {
             closeOverlays();
@@ -449,11 +461,49 @@
 
     // --- Global Hooks Called from Rust ---
 
+    window.__nexora_create_new_tab = createNewTab;
+
+    window.__nexora_zoom_in = function() {
+        if (state.zoomLevel < 200) {
+            state.zoomLevel += 10;
+            zoomLevelEl.textContent = state.zoomLevel + '%';
+            sendIpc({ type: 'set_zoom', level: state.zoomLevel });
+        }
+    };
+
+    window.__nexora_zoom_out = function() {
+        if (state.zoomLevel > 50) {
+            state.zoomLevel -= 10;
+            zoomLevelEl.textContent = state.zoomLevel + '%';
+            sendIpc({ type: 'set_zoom', level: state.zoomLevel });
+        }
+    };
+
+    window.__nexora_zoom_reset = function() {
+        state.zoomLevel = 100;
+        zoomLevelEl.textContent = '100%';
+        sendIpc({ type: 'set_zoom', level: 100 });
+    };
+
+    window.__nexora_toggle_more_menu = function() {
+        const isOpen = moreMenuDropdown.classList.contains('show');
+        closeOverlays();
+        if (!isOpen) {
+            moreMenuDropdown.classList.add('show');
+            expandOverlay(360);
+        }
+    };
+
     window.__nexora_update_url = function(url) {
         const active = state.tabs.find(t => t.id === state.activeTabId);
         if (active) {
             active.url = url;
             omniboxInput.value = (url === 'nexora://home' || url === 'about:blank') ? '' : url;
+            if (url === 'nexora://history') active.title = 'History';
+            else if (url === 'nexora://bookmarks') active.title = 'Bookmarks';
+            else if (url === 'nexora://settings') active.title = 'Settings';
+            else if (url === 'nexora://downloads') active.title = 'Downloads';
+            renderTabs();
         }
     };
 

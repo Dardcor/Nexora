@@ -7,7 +7,135 @@ use tao::{
     window::WindowBuilder,
 };
 #[cfg(target_os = "windows")]
-use wry::platform::windows::WebViewExtWindows;
+use tao::platform::windows::{WindowBuilderExtWindows, WindowExtWindows};
+
+#[cfg(target_os = "windows")]
+extern "system" {
+    fn CreatePopupMenu() -> isize;
+    fn AppendMenuW(hmenu: isize, uflags: u32, uid: usize, lptext: *const u16) -> i32;
+    fn TrackPopupMenu(
+        hmenu: isize,
+        uflags: u32,
+        x: i32,
+        y: i32,
+        nreserved: i32,
+        hwnd: isize,
+        prc: *const i32,
+    ) -> i32;
+    fn DestroyMenu(hmenu: isize) -> i32;
+    fn GetWindowRect(hwnd: isize, rect: *mut i32) -> i32;
+    fn SetForegroundWindow(hwnd: isize) -> i32;
+    fn GetWindow(hwnd: isize, ucmd: u32) -> isize;
+    fn BringWindowToTop(hwnd: isize) -> i32;
+    fn SetWindowPos(
+        hwnd: isize,
+        hwnd_insert_after: isize,
+        x: i32,
+        y: i32,
+        cx: i32,
+        cy: i32,
+        flags: u32,
+    ) -> i32;
+    fn LoadLibraryA(lpfilename: *const u8) -> isize;
+    fn GetProcAddress(hmodule: isize, lpprocname: *const u8) -> usize;
+}
+
+#[cfg(target_os = "windows")]
+const GW_CHILD: u32 = 5;
+#[cfg(target_os = "windows")]
+const HWND_TOP: isize = 0;
+#[cfg(target_os = "windows")]
+const SWP_NOSIZE: u32 = 0x0001;
+#[cfg(target_os = "windows")]
+const SWP_NOMOVE: u32 = 0x0002;
+#[cfg(target_os = "windows")]
+const SWP_NOACTIVATE: u32 = 0x0010;
+
+#[cfg(target_os = "windows")]
+fn enable_windows_dark_mode() {
+    unsafe {
+        let uxtheme = LoadLibraryA(b"uxtheme.dll\0".as_ptr());
+        if uxtheme != 0 {
+            let proc = GetProcAddress(uxtheme, 135 as _);
+            if proc != 0 {
+                let set_preferred_app_mode: unsafe extern "system" fn(i32) -> i32 =
+                    std::mem::transmute(proc);
+                set_preferred_app_mode(2);
+            }
+        }
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn show_native_more_menu(hwnd: isize, scale_factor: f64) -> Option<u32> {
+    const MF_STRING: u32 = 0x00000000;
+    const MF_SEPARATOR: u32 = 0x00000800;
+    const TPM_RIGHTALIGN: u32 = 0x0008;
+    const TPM_TOPALIGN: u32 = 0x0000;
+    const TPM_RETURNCMD: u32 = 0x0100;
+    const TPM_NONOTIFY: u32 = 0x0080;
+
+    fn to_wide(s: &str) -> Vec<u16> {
+        s.encode_utf16().chain(std::iter::once(0)).collect()
+    }
+
+    unsafe {
+        let hmenu = CreatePopupMenu();
+        if hmenu == 0 {
+            return None;
+        }
+
+        let add_item = |id: usize, text: &str| {
+            let wide = to_wide(text);
+            AppendMenuW(hmenu, MF_STRING, id, wide.as_ptr());
+        };
+        let add_separator = || {
+            AppendMenuW(hmenu, MF_SEPARATOR, 0, std::ptr::null());
+        };
+
+        add_item(1, "New Tab\tCtrl+T");
+        add_item(2, "New Window\tCtrl+N");
+        add_separator();
+        add_item(3, "History\tCtrl+H");
+        add_item(4, "Bookmarks\tCtrl+Shift+O");
+        add_item(5, "Downloads\tCtrl+J");
+        add_separator();
+        add_item(6, "Zoom In (+10%)\tCtrl++");
+        add_item(7, "Zoom Out (-10%)\tCtrl+-");
+        add_item(8, "Reset Zoom (100%)\tCtrl+0");
+        add_separator();
+        add_item(9, "Settings");
+        add_item(10, "About Nexora");
+        add_separator();
+        add_item(11, "Exit\tAlt+F4");
+
+        let mut rect = [0i32; 4];
+        GetWindowRect(hwnd, rect.as_mut_ptr());
+
+        let x = rect[2] - (10.0 * scale_factor) as i32;
+        let y = rect[1] + (TOOLBAR_LOGICAL_HEIGHT * scale_factor) as i32;
+
+        SetForegroundWindow(hwnd);
+
+        let cmd = TrackPopupMenu(
+            hmenu,
+            TPM_RIGHTALIGN | TPM_TOPALIGN | TPM_RETURNCMD | TPM_NONOTIFY,
+            x,
+            y,
+            0,
+            hwnd,
+            std::ptr::null(),
+        );
+
+        DestroyMenu(hmenu);
+
+        if cmd > 0 {
+            Some(cmd as u32)
+        } else {
+            None
+        }
+    }
+}
 use wry::{
     dpi::{PhysicalPosition, PhysicalSize},
     Rect, WebViewBuilder,
@@ -47,6 +175,7 @@ pub enum BrowserAction {
     ExpandOverlay(f64),
     CollapseOverlay,
     SetZoom(u32),
+    OpenMoreMenu,
 }
 
 /// Helper function to create an isolated, dedicated child WebView for any browser tab.
@@ -150,6 +279,9 @@ fn create_tab_webview(
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    #[cfg(target_os = "windows")]
+    enable_windows_dark_mode();
+
     let app = Arc::new(NexoraApp::new()?);
 
     let event_loop = EventLoopBuilder::<BrowserAction>::with_user_event().build();
@@ -178,6 +310,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_min_inner_size(tao::dpi::LogicalSize::new(600.0, 400.0));
 
     let window = builder.build(&event_loop)?;
+
 
     let scale_factor = window.scale_factor();
     let initial_physical = window.inner_size();
@@ -268,12 +401,36 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             let level = v.get("level").and_then(|l| l.as_u64()).unwrap_or(100) as u32;
                             let _ = proxy_toolbar.send_event(BrowserAction::SetZoom(level));
                         }
+                        "open_more_menu" => {
+                            let _ = proxy_toolbar.send_event(BrowserAction::OpenMoreMenu);
+                        }
                         _ => {}
                     }
                 }
             }
         })
         .build_as_child(&window)?;
+
+    #[cfg(target_os = "windows")]
+    let toolbar_hwnd = unsafe { GetWindow(window.hwnd() as isize, GW_CHILD) };
+
+    let bring_toolbar_to_top = move || {
+        #[cfg(target_os = "windows")]
+        if toolbar_hwnd != 0 {
+            unsafe {
+                SetWindowPos(
+                    toolbar_hwnd,
+                    HWND_TOP,
+                    0,
+                    0,
+                    0,
+                    0,
+                    SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
+                );
+                BringWindowToTop(toolbar_hwnd);
+            }
+        }
+    };
 
     // 2. Multi-Tab Dedicated WebViews Map
     let mut tab_webviews: HashMap<String, wry::WebView> = HashMap::new();
@@ -289,6 +446,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     )?;
     let _ = initial_wv.set_visible(true);
     tab_webviews.insert(active_tab_id.clone(), initial_wv);
+    bring_toolbar_to_top();
 
     // Initial explicit bounds setup
     let _ = toolbar_webview.set_bounds(Rect {
@@ -366,6 +524,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 tab_webviews.insert(id.clone(), new_wv);
                                 active_tab_id = id.clone();
                                 let _ = app.create_tab("nexora://home".into(), "Nexora Home".into(), "default".into());
+                                bring_toolbar_to_top();
 
                                 // Reset omnibox and bookmark star
                                 let _ = toolbar_webview.evaluate_script("if (window.__nexora_update_url) window.__nexora_update_url('');");
@@ -396,6 +555,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                             active_tab_id = id.clone();
                             app.switch_tab(&id);
+                            bring_toolbar_to_top();
                         }
                     }
                     BrowserAction::CloseTab(id) => {
@@ -539,6 +699,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             position: PhysicalPosition::new(0, 0).into(),
                             size: PhysicalSize::new(inner.width, expanded_h).into(),
                         });
+                        bring_toolbar_to_top();
                     }
                     BrowserAction::CollapseOverlay => {
                         let sf = window.scale_factor();
@@ -548,6 +709,54 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             position: PhysicalPosition::new(0, 0).into(),
                             size: PhysicalSize::new(inner.width, normal_h).into(),
                         });
+                    }
+                    BrowserAction::OpenMoreMenu => {
+                        #[cfg(target_os = "windows")]
+                        {
+                            let hwnd = window.hwnd() as isize;
+                            let sf = window.scale_factor();
+                            if let Some(cmd) = show_native_more_menu(hwnd, sf) {
+                                match cmd {
+                                    1 | 2 => {
+                                        let _ = toolbar_webview.evaluate_script("if (window.__nexora_create_new_tab) window.__nexora_create_new_tab();");
+                                    }
+                                    3 => {
+                                        let _ = proxy.send_event(BrowserAction::Navigate("nexora://history".into()));
+                                        let _ = toolbar_webview.evaluate_script("if (window.__nexora_update_url) window.__nexora_update_url('nexora://history');");
+                                    }
+                                    4 => {
+                                        let _ = proxy.send_event(BrowserAction::Navigate("nexora://bookmarks".into()));
+                                        let _ = toolbar_webview.evaluate_script("if (window.__nexora_update_url) window.__nexora_update_url('nexora://bookmarks');");
+                                    }
+                                    5 => {
+                                        let _ = proxy.send_event(BrowserAction::Navigate("nexora://downloads".into()));
+                                        let _ = toolbar_webview.evaluate_script("if (window.__nexora_update_url) window.__nexora_update_url('nexora://downloads');");
+                                    }
+                                    6 => {
+                                        let _ = toolbar_webview.evaluate_script("if (window.__nexora_zoom_in) window.__nexora_zoom_in();");
+                                    }
+                                    7 => {
+                                        let _ = toolbar_webview.evaluate_script("if (window.__nexora_zoom_out) window.__nexora_zoom_out();");
+                                    }
+                                    8 => {
+                                        let _ = toolbar_webview.evaluate_script("if (window.__nexora_zoom_reset) window.__nexora_zoom_reset();");
+                                    }
+                                    9 | 10 => {
+                                        let _ = proxy.send_event(BrowserAction::Navigate("nexora://settings".into()));
+                                        let _ = toolbar_webview.evaluate_script("if (window.__nexora_update_url) window.__nexora_update_url('nexora://settings');");
+                                    }
+                                    11 => {
+                                        let _ = proxy.send_event(BrowserAction::CloseWindow);
+                                    }
+                                    _ => {}
+                                }
+                            }
+                        }
+
+                        #[cfg(not(target_os = "windows"))]
+                        {
+                            let _ = toolbar_webview.evaluate_script("if (window.__nexora_toggle_more_menu) window.__nexora_toggle_more_menu();");
+                        }
                     }
                     BrowserAction::SetZoom(level) => {
                         if let Some(active_wv) = tab_webviews.get(&active_tab_id) {
@@ -606,6 +815,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 for (_, wv) in tab_webviews.iter() {
                     let _ = wv.set_bounds(content_bounds);
                 }
+
+                bring_toolbar_to_top();
             }
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,
