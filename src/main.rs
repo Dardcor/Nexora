@@ -176,6 +176,7 @@ pub enum BrowserAction {
     CollapseOverlay,
     SetZoom(u32),
     OpenMoreMenu,
+    ReopenClosedTab,
 }
 
 /// Helper function to create an isolated, dedicated child WebView for any browser tab.
@@ -205,6 +206,7 @@ fn create_tab_webview(
     let mut builder = WebViewBuilder::new()
         .with_bounds(bounds)
         .with_user_agent(DESKTOP_USER_AGENT)
+        .with_devtools(true)
         .with_initialization_script(stealth_script)
         .with_navigation_handler(move |url: String| -> bool {
             if url.starts_with("nexora://") {
@@ -404,6 +406,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         "open_more_menu" => {
                             let _ = proxy_toolbar.send_event(BrowserAction::OpenMoreMenu);
                         }
+                        "reopen_closed_tab" => {
+                            let _ = proxy_toolbar.send_event(BrowserAction::ReopenClosedTab);
+                        }
                         _ => {}
                     }
                 }
@@ -435,6 +440,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 2. Multi-Tab Dedicated WebViews Map
     let mut tab_webviews: HashMap<String, wry::WebView> = HashMap::new();
     let mut active_tab_id: String = "tab-1".to_string();
+    let mut closed_tabs: Vec<(String, String)> = Vec::new();
 
     let initial_wv = create_tab_webview(
         &window,
@@ -559,6 +565,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
                     }
                     BrowserAction::CloseTab(id) => {
+                        if let Some(wv) = tab_webviews.get(&id) {
+                            if let Ok(url) = wv.url() {
+                                if !url.is_empty() && !url.starts_with("nexora://") {
+                                    closed_tabs.push((url, "Closed Tab".to_string()));
+                                }
+                            }
+                        }
                         tab_webviews.remove(&id);
                         app.close_tab(&id);
 
@@ -570,7 +583,41 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             }
                         }
                     }
-                    BrowserAction::TabNavigated { tab_id, url } | BrowserAction::TabLoadFinished { tab_id, url } => {
+                    BrowserAction::ReopenClosedTab => {
+                        if let Some((url, title)) = closed_tabs.pop() {
+                            let new_id = format!("tab-{}", chrono::Utc::now().timestamp_millis());
+                            if let Some(prev_wv) = tab_webviews.get(&active_tab_id) {
+                                let _ = prev_wv.set_visible(false);
+                            }
+
+                            match create_tab_webview(
+                                &window,
+                                &new_id,
+                                &url,
+                                content_bounds,
+                                proxy.clone(),
+                                Arc::clone(&app.security),
+                            ) {
+                                Ok(new_wv) => {
+                                    let _ = new_wv.set_visible(true);
+                                    tab_webviews.insert(new_id.clone(), new_wv);
+                                    active_tab_id = new_id.clone();
+                                    let _ = app.create_tab(url.clone(), title.clone(), "default".into());
+                                    bring_toolbar_to_top();
+
+                                    let restore_script = format!(
+                                        "if (window.__nexora_restore_tab) window.__nexora_restore_tab({:?}, {:?}, {:?});",
+                                        new_id, url, title
+                                    );
+                                    let _ = toolbar_webview.evaluate_script(&restore_script);
+                                }
+                                Err(e) => {
+                                    eprintln!("Failed to restore tab webview: {}", e);
+                                }
+                            }
+                        }
+                    }
+                    BrowserAction::TabNavigated { tab_id, url } => {
                         if tab_id == active_tab_id {
                             let script = format!("if (window.__nexora_update_url) window.__nexora_update_url({:?});", url);
                             let _ = toolbar_webview.evaluate_script(&script);
@@ -578,6 +625,42 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             let is_bm = app.db.is_bookmarked(&url);
                             let bm_script = format!("if (window.__nexora_set_bookmarked) window.__nexora_set_bookmarked({});", is_bm);
                             let _ = toolbar_webview.evaluate_script(&bm_script);
+
+                            let _ = toolbar_webview.evaluate_script("if (window.__nexora_page_loading) window.__nexora_page_loading(true);");
+                        }
+                    }
+                    BrowserAction::TabLoadFinished { tab_id, url } => {
+                        if tab_id == active_tab_id {
+                            let script = format!("if (window.__nexora_update_url) window.__nexora_update_url({:?});", url);
+                            let _ = toolbar_webview.evaluate_script(&script);
+
+                            let is_bm = app.db.is_bookmarked(&url);
+                            let bm_script = format!("if (window.__nexora_set_bookmarked) window.__nexora_set_bookmarked({});", is_bm);
+                            let _ = toolbar_webview.evaluate_script(&bm_script);
+
+                            let _ = toolbar_webview.evaluate_script("if (window.__nexora_page_loading) window.__nexora_page_loading(false);");
+                        }
+
+                        // Evaluate favicon extraction script on the loaded tab webview
+                        if let Some(wv) = tab_webviews.get(&tab_id) {
+                            let favicon_script = r#"
+                                (function() {
+                                    try {
+                                        let link = document.querySelector('link[rel~="icon"]') || 
+                                                   document.querySelector('link[rel="shortcut icon"]') || 
+                                                   document.querySelector('link[rel*="icon"]') || 
+                                                   document.querySelector('link[rel="apple-touch-icon"]');
+                                        let iconUrl = link && link.href ? link.href : (window.location.origin + '/favicon.ico');
+                                        if (window.ipc) {
+                                            window.ipc.postMessage(JSON.stringify({
+                                                type: 'page_favicon',
+                                                favicon: iconUrl
+                                            }));
+                                        }
+                                    } catch(e) {}
+                                })();
+                            "#;
+                            let _ = wv.evaluate_script(favicon_script);
                         }
                     }
                     BrowserAction::TabTitleChanged { tab_id, title } => {
@@ -660,6 +743,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                         if let Some(url) = v.get("url").and_then(|u| u.as_str()) {
                                             let _ = proxy.send_event(BrowserAction::Navigate(url.to_string()));
                                             let script = format!("if (window.__nexora_update_url) window.__nexora_update_url({:?});", url);
+                                            let _ = toolbar_webview.evaluate_script(&script);
+                                        }
+                                    }
+                                    "page_favicon" => {
+                                        if let Some(favicon) = v.get("favicon").and_then(|f| f.as_str()) {
+                                            let script = format!(
+                                                "if (window.__nexora_update_tab_favicon) window.__nexora_update_tab_favicon({:?}, {:?});",
+                                                tab_id, favicon
+                                            );
                                             let _ = toolbar_webview.evaluate_script(&script);
                                         }
                                     }

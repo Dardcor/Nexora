@@ -166,6 +166,15 @@ button {
     color: var(--text-bright);
 }
 
+.tab-favicon-img {
+    width: 16px;
+    height: 16px;
+    border-radius: 2px;
+    object-fit: contain;
+    flex-shrink: 0;
+}
+
+.tab-favicon-svg,
 .tab-favicon {
     width: 14px;
     height: 14px;
@@ -173,6 +182,7 @@ button {
     color: #58a6ff;
 }
 
+.tab-item.active .tab-favicon-svg,
 .tab-item.active .tab-favicon {
     color: #38bdf8;
 }
@@ -265,9 +275,33 @@ button {
 /* Omnibox Form */
 .omnibox-form {
     flex: 1;
-    max-width: 900px;
-    margin: 0 auto;
+    width: 100%;
+    margin: 0 4px;
     position: relative;
+}
+
+/* Page Loading Progress Bar */
+.page-loading-bar {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    height: 2px;
+    width: 0%;
+    background: linear-gradient(90deg, #38bdf8, #818cf8, #a855f7);
+    transition: width 0.3s ease, opacity 0.3s ease;
+    opacity: 0;
+    pointer-events: none;
+    z-index: 100;
+}
+
+.page-loading-bar.loading {
+    opacity: 1;
+    width: 75%;
+}
+
+.page-loading-bar.finished {
+    width: 100%;
+    opacity: 0;
 }
 
 .omnibox-shell {
