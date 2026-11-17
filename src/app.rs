@@ -25,8 +25,8 @@ impl NexoraApp {
         let freezer = TabFreezer::new(config.hibernation_timeout_secs);
 
         let initial_tab = BrowserTab::new(
-            "newtab.html".to_string(),
-            "New Tab".to_string(),
+            "nexora://home".to_string(),
+            "Nexora Home".to_string(),
             "personal".to_string(),
         );
         let initial_id = initial_tab.id.clone();
@@ -101,8 +101,8 @@ impl NexoraApp {
                 self.navigate_active_tab(url)
             }
             "new_tab" => {
-                let url = v.get("tab")?.get("url")?.as_str().unwrap_or("newtab.html");
-                let title = v.get("tab")?.get("title")?.as_str().unwrap_or("New Tab");
+                let url = v.get("tab")?.get("url")?.as_str().unwrap_or("nexora://home");
+                let title = v.get("tab")?.get("title")?.as_str().unwrap_or("Nexora Home");
                 let space = v.get("tab")?.get("space")?.as_str().unwrap_or("personal");
                 Some(self.create_tab(url.to_string(), title.to_string(), space.to_string()))
             }

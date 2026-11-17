@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nexora Toolbar</title>
+    <link rel="stylesheet" href="toolbar.css">
+</head>
+<body>
+    <div class="nexora-toolbar" id="toolbar">
+        <!-- Top Row: Tab Strip -->
+        <div class="tab-strip-row">
+            <div class="tab-strip" id="tab-strip" role="tablist" aria-label="Browser tabs">
+                <!-- Tabs dynamically rendered -->
+            </div>
+            <button class="icon-btn new-tab-btn" id="btn-new-tab" title="New Tab (Ctrl+T)" aria-label="Open new tab">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                    <path d="M8 2a.75.75 0 0 1 .75.75v4.5h4.5a.75.75 0 0 1 0 1.5h-4.5v4.5a.75.75 0 0 1-1.5 0v-4.5h-4.5a.75.75 0 0 1 0-1.5h4.5v-4.5A.75.75 0 0 1 8 2Z"/>
+                </svg>
+            </button>
+        </div>
+
+        <!-- Bottom Row: Navigation & Omnibox Bar -->
+        <div class="nav-bar-row">
+            <div class="nav-buttons">
+                <button class="icon-btn" id="btn-back" title="Go Back (Alt+Left)" aria-label="Back">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                        <path fill-rule="evenodd" d="M9.78 12.78a.75.75 0 0 1-1.06 0L4.47 8.53a.75.75 0 0 1 0-1.06l4.25-4.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042L6.06 8l3.72 3.72a.75.75 0 0 1 0 1.06Z"/>
+                    </svg>
+                </button>
+                <button class="icon-btn" id="btn-forward" title="Go Forward (Alt+Right)" aria-label="Forward">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                        <path fill-rule="evenodd" d="M6.22 3.22a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042L9.94 8 6.22 4.28a.75.75 0 0 1 0-1.06Z"/>
+                    </svg>
+                </button>
+                <button class="icon-btn" id="btn-reload" title="Reload (Ctrl+R)" aria-label="Reload">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                        <path fill-rule="evenodd" d="M8 2.5a5.487 5.487 0 0 0-4.131 1.869l1.204 1.204A.25.25 0 0 1 4.896 6H1.25A.25.25 0 0 1 1 5.75V2.104a.25.25 0 0 1 .427-.177l1.38 1.38A7.001 7.001 0 0 1 14.95 7.16a.75.75 0 1 1-1.49.178A5.5 5.5 0 0 0 8 2.5ZM1.05 8.84a.75.75 0 0 1 1.49-.178A5.5 5.5 0 0 0 8 13.5a5.487 5.487 0 0 0 4.131-1.869l-1.204-1.204a.25.25 0 0 1 .177-.427h3.646a.25.25 0 0 1 .25.25v3.646a.25.25 0 0 1-.427.177l-1.38-1.38A7.001 7.001 0 0 1 1.05 8.84Z"/>
+                    </svg>
+                </button>
+                <button class="icon-btn" id="btn-home" title="Nexora Home" aria-label="Home">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                        <path fill-rule="evenodd" d="M8.707 1.5a1 1 0 0 0-1.414 0L.646 8.146a.5.5 0 0 0 .708.708L2 8.207V13.5A1.5 1.5 0 0 0 3.5 15h9a1.5 1.5 0 0 0 1.5-1.5V8.207l.646.647a.5.5 0 0 0 .708-.708L8.707 1.5Z"/>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Omnibox URL / Search input -->
+            <form class="omnibox-form" id="omnibox-form">
+                <div class="omnibox-container">
+                    <div class="security-badge" id="security-badge" title="Connection security">
+                        <svg class="lock-icon" width="13" height="13" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                            <path fill-rule="evenodd" d="M4 4v2h-.25A1.75 1.75 0 0 0 2 7.75v5.5c0 .966.784 1.75 1.75 1.75h8.5A1.75 1.75 0 0 0 14 13.25v-5.5A1.75 1.75 0 0 0 12.25 6H12V4a4 4 0 1 0-8 0Zm6.5 2V4a2.5 2.5 0 0 0-5 0v2h5Z"/>
+                        </svg>
+                    </div>
+                    <input 
+                        type="text" 
+                        class="omnibox-input" 
+                        id="omnibox-input" 
+                        placeholder="Search or enter web address..." 
+                        autocomplete="off" 
+                        spellcheck="false"
+                        aria-label="Address and search bar"
+                    >
+                    <div class="omnibox-actions">
+                        <button type="button" class="action-btn" id="btn-reader" title="Nexora Reader View" aria-label="Reader view">
+                            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                                <path d="M0 2.75C0 1.784.784 1 1.75 1h12.5c.966 0 1.75.784 1.75 1.75v10.5A1.75 1.75 0 0 1 14.25 15H1.75A1.75 1.75 0 0 1 0 13.25V2.75Zm1.75-.25a.25.25 0 0 0-.25.25v10.5c0 .138.112.25.25.25h12.5a.25.25 0 0 0 .25-.25V2.75a.25.25 0 0 0-.25-.25H1.75ZM3.5 4h9a.75.75 0 0 1 0 1.5h-9a.75.75 0 0 1 0-1.5Zm0 3.25h9a.75.75 0 0 1 0 1.5h-9a.75.75 0 0 1 0-1.5Zm0 3.25h5.5a.75.75 0 0 1 0 1.5H3.5a.75.75 0 0 1 0-1.5Z"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </form>
+
+            <!-- Shield Badge & Menu -->
+            <div class="shield-container">
+                <button class="shield-btn" id="btn-shield" title="Nexora Shield Protection" aria-label="Shield status">
+                    <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                        <path fill-rule="evenodd" d="m8.47 1.077 5.5 2.2a.75.75 0 0 1 .47.697v4.776c0 3.967-2.67 7.025-5.94 8.2a.75.75 0 0 1-.56 0C4.67 15.775 2 12.717 2 8.75V3.974a.75.75 0 0 1 .47-.697l5.5-2.2a.75.75 0 0 1 .56 0ZM3.5 4.542v4.208c0 3.256 2.127 5.86 4.5 6.942 2.373-1.082 4.5-3.686 4.5-6.942V4.542L8 2.742 3.5 4.542Z"/>
+                    </svg>
+                    <span class="shield-counter" id="shield-counter">0</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="toolbar.js"></script>
+</body>
+</html>
