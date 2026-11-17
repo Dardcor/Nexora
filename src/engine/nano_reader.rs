@@ -1,12 +1,8 @@
 use regex::Regex;
 
-/// Nexora Nano: Pure Rust Distraction-Free Reader Engine.
-/// Parses raw HTML, eliminates scripts, ads, and layout clutter,
-/// and produces a lightweight, privacy-hardened reader document.
 pub struct NanoReader;
 
 impl NanoReader {
-    /// Extracts readable title and content from raw HTML without executing any JavaScript.
     pub fn format_reader_view(raw_html: &str, source_url: &str) -> String {
         let title = Self::extract_title(raw_html);
         let cleaned_body = Self::clean_body(raw_html);
@@ -109,7 +105,6 @@ impl NanoReader {
     }
 
     fn clean_body(html: &str) -> String {
-        // Remove script, style, nav, header, footer tags and their contents
         let removals = [
             r"(?is)<script[^>]*>.*?</script>",
             r"(?is)<style[^>]*>.*?</style>",
@@ -126,13 +121,11 @@ impl NanoReader {
             cleaned = re.replace_all(&cleaned, "").to_string();
         }
 
-        // Try extracting <article> tag content first if present
         let article_re = Regex::new(r"(?is)<article[^>]*>(.*?)</article>").unwrap();
         if let Some(caps) = article_re.captures(&cleaned) {
             return caps.get(1).unwrap().as_str().trim().to_string();
         }
 
-        // Otherwise extract all <p> paragraphs
         let p_re = Regex::new(r"(?is)<p[^>]*>(.*?)</p>").unwrap();
         let mut paragraphs = Vec::new();
         for caps in p_re.captures_iter(&cleaned) {

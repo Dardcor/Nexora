@@ -2,7 +2,6 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-/// Represents a browsing history entry stored encrypted locally.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HistoryItem {
     pub id: String,
@@ -26,7 +25,6 @@ impl HistoryItem {
     }
 }
 
-/// Represents a bookmark item stored encrypted locally.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BookmarkItem {
     pub id: String,
@@ -50,7 +48,6 @@ impl BookmarkItem {
     }
 }
 
-/// A workspace / container (e.g., Personal, Work, Finance, Research).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BrowserSpace {
     pub id: String,
@@ -65,14 +62,13 @@ impl Default for BrowserSpace {
         Self {
             id: "default-space".to_string(),
             name: "Personal".to_string(),
-            color: "#3B82F6".to_string(), // Electric Sapphire
+            color: "#3B82F6".to_string(),
             icon: "user".to_string(),
             is_default: true,
         }
     }
 }
 
-/// A serialized tab session for persistence and hibernation restoration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TabSession {
     pub id: String,

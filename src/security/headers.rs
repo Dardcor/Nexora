@@ -1,10 +1,8 @@
 use url::Url;
 
-/// Strips intrusive tracking query parameters from URLs before navigation.
 pub struct PrivacyHeaders;
 
 impl PrivacyHeaders {
-    /// Removes known tracking query parameters such as fbclid, gclid, utm_*, etc.
     pub fn strip_tracking_params(raw_url: &str) -> String {
         let Ok(mut parsed) = Url::parse(raw_url) else {
             return raw_url.to_string();

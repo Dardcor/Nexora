@@ -3,8 +3,6 @@ use parking_lot::RwLock;
 use std::sync::Arc;
 use super::tab::BrowserTab;
 
-/// Tab Inactivity Governor: Monitors background tabs and triggers deep hibernation
-/// to aggressively reclaim RAM (saving up to 80-90% memory compared to Chrome).
 pub struct TabFreezer {
     hibernation_timeout_secs: i64,
 }
@@ -16,8 +14,6 @@ impl TabFreezer {
         }
     }
 
-    /// Scans all tabs and hibernates inactive background tabs.
-    /// Returns the number of newly hibernated tabs and estimated RAM freed in MB.
     pub fn sweep_and_hibernate(
         &self,
         tabs: &Arc<RwLock<Vec<BrowserTab>>>,
@@ -30,7 +26,6 @@ impl TabFreezer {
 
         let mut tabs_guard = tabs.write();
         for tab in tabs_guard.iter_mut() {
-            // Never hibernate the currently active tab
             if let Some(active_id) = active_tab_id {
                 if tab.id == active_id {
                     continue;
@@ -60,7 +55,7 @@ mod tests {
 
         let tabs = Arc::new(RwLock::new(vec![tab1, tab2]));
 
-        let freezer = TabFreezer::new(0); // 0s timeout for testing
+        let freezer = TabFreezer::new(0);
 
         let (hibernated_count, memory_saved) = freezer.sweep_and_hibernate(&tabs, Some(&active_id));
         

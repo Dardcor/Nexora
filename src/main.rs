@@ -86,7 +86,7 @@ fn spawn_new_window(incognito: bool) {
         #[cfg(target_os = "windows")]
         {
             use std::os::windows::process::CommandExt;
-            cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+            cmd.creation_flags(0x08000000);
         }
         let _ = cmd.spawn();
     }
@@ -256,12 +256,10 @@ pub enum BrowserAction {
     MinimizeWindow,
     ToggleMaximizeWindow,
     CloseWindow,
-    // Multi-tab specific events
     TabNavigated { tab_id: String, url: String },
     TabLoadFinished { tab_id: String, url: String },
     TabTitleChanged { tab_id: String, title: String },
     ContentIpc { tab_id: String, body: String },
-    // Bookmarks, Omnibox, and UI Features
     ToggleBookmark { url: String, title: String },
     OmniboxQuery(String),
     ExpandOverlay(f64),
@@ -275,9 +273,11 @@ pub enum BrowserAction {
     StopFind,
     PrintPage,
     ToggleFullscreen,
+    GetProfiles,
+    SwitchProfile(String),
+    AddProfile { name: String, email: String, badge: String, color: String },
 }
 
-/// Helper function to create an isolated, dedicated child WebView for any browser tab.
 fn create_tab_webview(
     window: &tao::window::Window,
     tab_id: &str,
@@ -354,6 +354,10 @@ fn create_tab_webview(
             if url.starts_with("nexora://") {
                 let _ = proxy_nav.send_event(BrowserAction::Navigate(url));
                 return false;
+            }
+
+            if url.starts_with("data:") {
+                return true;
             }
 
             let (should_allow, cleaned_url) = if security_nav.shield.should_block(&url) {
@@ -475,7 +479,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         size: PhysicalSize::new(initial_width, initial_content_h).into(),
     };
 
-    // 1. Toolbar WebView (Tabs, Omnibox, Actions, Dropdowns)
     let proxy_toolbar = proxy.clone();
     let toolbar_html = NexoraUiAssets::get_inlined_toolbar_html();
 
@@ -584,6 +587,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         "stop_find" => {
                             let _ = proxy_toolbar.send_event(BrowserAction::StopFind);
                         }
+                        "get_profiles" => {
+                            let _ = proxy_toolbar.send_event(BrowserAction::GetProfiles);
+                        }
+                        "switch_profile" => {
+                            if let Some(id) = v.get("id").and_then(|i| i.as_str()) {
+                                let _ = proxy_toolbar.send_event(BrowserAction::SwitchProfile(id.to_string()));
+                            }
+                        }
+                        "add_profile" => {
+                            let name = v.get("name").and_then(|n| n.as_str()).unwrap_or("New Profile").to_string();
+                            let email = v.get("email").and_then(|e| e.as_str()).unwrap_or("").to_string();
+                            let badge = v.get("badge").and_then(|b| b.as_str()).unwrap_or("").to_string();
+                            let color = v.get("color").and_then(|c| c.as_str()).unwrap_or("#4285f4").to_string();
+                            let _ = proxy_toolbar.send_event(BrowserAction::AddProfile { name, email, badge, color });
+                        }
                         _ => {}
                     }
                 }
@@ -612,12 +630,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
-    // If incognito mode, notify toolbar UI
     if is_incognito {
         let _ = toolbar_webview.evaluate_script("if (window.__nexora_set_incognito) window.__nexora_set_incognito(true);");
     }
 
-    // Synchronize initial settings to toolbar UI
     let current_engine = app.db.get_setting("search_engine", "google");
     let init_settings_script = format!(
         "if (window.__nexora_update_settings) window.__nexora_update_settings({{ search_engine: {:?} }});",
@@ -625,7 +641,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
     let _ = toolbar_webview.evaluate_script(&init_settings_script);
 
-    // 2. Multi-Tab Dedicated WebViews Map
+    if let Ok(profiles) = app.db.get_profiles() {
+        if let Ok(json_str) = serde_json::to_string(&profiles) {
+            let script = format!("if (window.__nexora_update_profiles) window.__nexora_update_profiles({});", json_str);
+            let _ = toolbar_webview.evaluate_script(&script);
+        }
+    }
+
     let mut tab_webviews: HashMap<String, wry::WebView> = HashMap::new();
     let mut tab_urls: HashMap<String, String> = HashMap::new();
     let mut active_tab_id: String = "tab-1".to_string();
@@ -645,13 +667,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     tab_webviews.insert(active_tab_id.clone(), initial_wv);
     bring_toolbar_to_top();
 
-    // Initial explicit bounds setup
     let _ = toolbar_webview.set_bounds(Rect {
         position: PhysicalPosition::new(0, 0).into(),
         size: PhysicalSize::new(initial_width, initial_toolbar_h).into(),
     });
 
-    // Main Event Loop
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;
 
@@ -815,8 +835,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
                     }
                     BrowserAction::TabNavigated { tab_id, url } => {
-                        let effective_url = if url.is_empty() || url == "about:blank" {
-                            tab_urls.get(&tab_id).cloned().unwrap_or(url)
+                        let effective_url = if url.is_empty() || url == "about:blank" || url.starts_with("data:") {
+                            tab_urls.get(&tab_id).cloned().unwrap_or_else(|| "nexora://home".to_string())
                         } else {
                             tab_urls.insert(tab_id.clone(), url.clone());
                             url
@@ -834,8 +854,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
                     }
                     BrowserAction::TabLoadFinished { tab_id, url } => {
-                        let effective_url = if url.is_empty() || url == "about:blank" {
-                            tab_urls.get(&tab_id).cloned().unwrap_or(url)
+                        let effective_url = if url.is_empty() || url == "about:blank" || url.starts_with("data:") {
+                            tab_urls.get(&tab_id).cloned().unwrap_or_else(|| "nexora://home".to_string())
                         } else {
                             tab_urls.insert(tab_id.clone(), url.clone());
                             url
@@ -852,7 +872,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             let _ = toolbar_webview.evaluate_script("if (window.__nexora_page_loading) window.__nexora_page_loading(false);");
                         }
 
-                        // Only evaluate dynamic favicon extraction script for external HTTP/HTTPS websites
                         if effective_url.starts_with("http://") || effective_url.starts_with("https://") {
                             if let Some(wv) = tab_webviews.get(&tab_id) {
                                 let favicon_script = r#"
@@ -884,7 +903,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         let _ = toolbar_webview.evaluate_script(&script);
 
                         if let Some(url) = tab_urls.get(&tab_id) {
-                            if !url.is_empty() && !url.starts_with("nexora://") {
+                            if !url.is_empty() 
+                                && !url.starts_with("nexora://") 
+                                && !url.starts_with("data:") 
+                                && !url.starts_with("about:") 
+                            {
                                 let _ = app.db.record_visit(url, &title, "default");
                             }
                         }
@@ -893,6 +916,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         if let Ok(v) = serde_json::from_str::<Value>(&body) {
                             if let Some(msg_type) = v.get("type").and_then(|t| t.as_str()) {
                                 match msg_type {
+                                    "google_account_detected" => {
+                                        if let Some(email) = v.get("email").and_then(|e| e.as_str()) {
+                                            let name = v.get("name").and_then(|n| n.as_str()).unwrap_or("Dard");
+                                            if let Ok(Some(active_prof)) = app.db.get_active_profile() {
+                                                let _ = app.db.update_profile(&active_prof.id, name, email, &active_prof.badge, &active_prof.color);
+                                                let _ = proxy.send_event(BrowserAction::GetProfiles);
+                                            }
+                                        }
+                                    }
                                     "get_history" => {
                                         let query = v.get("query").and_then(|q| q.as_str()).unwrap_or("");
                                         let records = app.db.query_history(query, 100).unwrap_or_default();
@@ -1291,6 +1323,32 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     BrowserAction::CloseWindow => {
                         let _ = app.vault.save_history();
                         *control_flow = ControlFlow::Exit;
+                    }
+                    BrowserAction::GetProfiles => {
+                        if let Ok(profiles) = app.db.get_profiles() {
+                            if let Ok(json_str) = serde_json::to_string(&profiles) {
+                                let script = format!("if (window.__nexora_update_profiles) window.__nexora_update_profiles({});", json_str);
+                                let _ = toolbar_webview.evaluate_script(&script);
+                            }
+                        }
+                    }
+                    BrowserAction::SwitchProfile(id) => {
+                        let _ = app.db.switch_profile(&id);
+                        if let Ok(profiles) = app.db.get_profiles() {
+                            if let Ok(json_str) = serde_json::to_string(&profiles) {
+                                let script = format!("if (window.__nexora_update_profiles) window.__nexora_update_profiles({});", json_str);
+                                let _ = toolbar_webview.evaluate_script(&script);
+                            }
+                        }
+                    }
+                    BrowserAction::AddProfile { name, email, badge, color } => {
+                        let _ = app.db.add_profile(&name, &email, &badge, &color);
+                        if let Ok(profiles) = app.db.get_profiles() {
+                            if let Ok(json_str) = serde_json::to_string(&profiles) {
+                                let script = format!("if (window.__nexora_update_profiles) window.__nexora_update_profiles({});", json_str);
+                                let _ = toolbar_webview.evaluate_script(&script);
+                            }
+                        }
                     }
                 }
             }

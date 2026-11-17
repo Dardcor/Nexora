@@ -10,7 +10,6 @@ impl NexoraUiAssets {
     pub const SETTINGS_HTML: &'static str = include_str!("assets/settings.html");
     pub const DOWNLOADS_HTML: &'static str = include_str!("assets/downloads.html");
 
-    /// Inlines CSS and JS into toolbar HTML for zero-latency local rendering.
     pub fn get_inlined_toolbar_html() -> String {
         let mut html = Self::TOOLBAR_HTML.to_string();
         let css_block = format!("<style>{}</style>", Self::TOOLBAR_CSS);
@@ -21,7 +20,6 @@ impl NexoraUiAssets {
         html
     }
 
-    /// Returns the standalone local Nexora home page.
     pub fn get_standalone_home_html() -> &'static str {
         Self::HOME_HTML
     }

@@ -8,7 +8,6 @@
 </head>
 <body>
     <header class="nexora-chrome">
-        <!-- Row 1: Chrome Horizontal Tab Strip (Top-most) -->
         <div class="tab-strip-row" id="tab-strip-row">
             <button class="tab-dropdown-btn" id="btn-tab-menu" title="Search Tabs" aria-label="Tab menu">
                 <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
@@ -16,9 +15,7 @@
                 </svg>
             </button>
 
-            <div class="tab-strip" id="tab-strip" role="tablist" aria-label="Open tabs">
-                <!-- Dynamically rendered tabs -->
-            </div>
+            <div class="tab-strip" id="tab-strip" role="tablist" aria-label="Open tabs"></div>
 
             <button class="new-tab-btn" id="btn-new-tab" title="New Tab (Ctrl+T)" aria-label="New tab">
                 <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
@@ -28,7 +25,6 @@
 
             <div class="window-drag-spacer" id="drag-spacer"></div>
 
-            <!-- Native Window Caption Controls -->
             <div class="window-controls" id="window-controls">
                 <button class="win-btn win-btn-min" id="btn-win-min" title="Minimize" aria-label="Minimize">
                     <svg width="10" height="1" viewBox="0 0 10 1"><rect width="10" height="1" fill="currentColor"/></svg>
@@ -44,7 +40,6 @@
             </div>
         </div>
 
-        <!-- Row 2: Navigation & Omnibox URL Bar -->
         <div class="nav-bar-row">
             <div class="nav-actions">
                 <button class="nav-circle-btn" id="btn-back" title="Click to go back (Alt+Left)" aria-label="Back">
@@ -64,7 +59,6 @@
                 </button>
             </div>
 
-            <!-- Full-Width Omnibox -->
             <form class="omnibox-form" id="omnibox-form">
                 <div class="omnibox-shell" id="omnibox-shell">
                     <button type="button" class="omnibox-left-btn" id="btn-site-info" title="View site information" aria-label="Site security">
@@ -97,13 +91,9 @@
                     </div>
                 </div>
 
-                <!-- Omnibox Autocomplete Dropdown -->
-                <div class="omnibox-dropdown" id="omnibox-dropdown">
-                    <!-- Dynamic autocomplete matches -->
-                </div>
+                <div class="omnibox-dropdown" id="omnibox-dropdown"></div>
             </form>
 
-            <!-- Profile & Menu Actions -->
             <div class="profile-actions">
                 <button class="shield-pill-btn" id="btn-shield" title="Nexora Shield Protection Active" aria-label="Shield status">
                     <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
@@ -112,9 +102,12 @@
                     <span class="shield-badge-text" id="shield-count">0</span>
                 </button>
 
-                <img class="profile-avatar" id="profile-avatar" src="data:image/png;base64,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" alt="Nexora" width="24" height="24">
+                <button class="profile-btn" id="btn-profile" title="Nexora Profile & Account" aria-label="Profile">
+                    <div class="profile-avatar-circle" id="toolbar-avatar-circle">
+                        <span id="toolbar-avatar-initial">D</span>
+                    </div>
+                </button>
 
-                <!-- Chrome 3-Dot More Menu Button -->
                 <button class="nav-circle-btn" id="btn-more-menu" title="Customize and control Nexora" aria-label="Menu">
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
                         <path d="M8 9a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3ZM8 4a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3ZM8 14a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z"/>
@@ -122,12 +115,10 @@
                 </button>
             </div>
 
-            <!-- Page Loading Progress Bar -->
             <div class="page-loading-bar" id="page-loading-bar"></div>
         </div>
     </header>
 
-    <!-- Find in Page Bar -->
     <div class="find-bar" id="find-bar">
         <input type="text" class="find-input" id="find-input" placeholder="Find in page..." autocomplete="off">
         <button type="button" class="find-btn" id="find-prev" title="Previous match (Shift+Enter)">&#9650;</button>
@@ -135,7 +126,6 @@
         <button type="button" class="find-btn find-close" id="find-close" title="Close (Esc)">&times;</button>
     </div>
 
-    <!-- Quick Tab Switcher / Search Tabs Dropdown -->
     <div class="tab-search-dropdown" id="tab-search-dropdown">
         <div class="tab-search-header">
             <input type="text" class="tab-search-input" id="tab-search-input" placeholder="Search open tabs..." autocomplete="off">
@@ -143,10 +133,77 @@
         <div class="tab-search-list" id="tab-search-list"></div>
     </div>
 
-    <!-- Transparent Backdrop for outside clicks -->
     <div class="overlay-backdrop" id="overlay-backdrop"></div>
 
-    <!-- Chrome 3-Dot Dropdown Menu -->
+    <div class="profile-popup" id="profile-popup">
+        <div class="profile-card">
+            <div class="profile-header-avatar">
+                <div class="profile-large-avatar" id="popup-avatar-circle">
+                    <span id="popup-avatar-initial">D</span>
+                </div>
+                <div class="profile-badge-pill" id="popup-profile-badge">Pro</div>
+            </div>
+            <div class="profile-identity">
+                <div class="profile-name" id="popup-profile-name">Dard</div>
+                <div class="profile-email" id="popup-profile-email">dardcorxyz@gmail.com</div>
+            </div>
+        </div>
+
+        <div class="profile-menu">
+            <button class="profile-menu-item" id="prof-btn-passwords">
+                <svg class="prof-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 2l-2 2m-1.5 1.5L16 7l-1.5-1.5L13 7l-2-2a7 7 0 1 0 7 7v-3l3-3-1.5-1.5zM7.5 14a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z"/>
+                </svg>
+                <span>Passwords and autofill</span>
+            </button>
+            <button class="profile-menu-item" id="prof-btn-google">
+                <svg class="prof-icon" viewBox="0 0 24 24">
+                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+                </svg>
+                <span>Manage your Google Account</span>
+            </button>
+            <button class="profile-menu-item" id="prof-btn-customize">
+                <svg class="prof-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+                </svg>
+                <span>Customize profile</span>
+            </button>
+            <button class="profile-menu-item" id="prof-btn-account">
+                <svg class="prof-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="3"/>
+                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                </svg>
+                <span>Your account in Nexora</span>
+            </button>
+            <button class="profile-menu-item" id="prof-btn-signout">
+                <svg class="prof-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>
+                </svg>
+                <span>Sign out of Nexora</span>
+            </button>
+        </div>
+
+        <div class="profile-divider"></div>
+
+        <div class="profile-section-title">Other Nexora profiles</div>
+        <div class="profile-other-list" id="profile-other-list"></div>
+
+        <div class="profile-divider"></div>
+
+        <div class="profile-footer">
+            <button class="profile-footer-btn" id="prof-btn-add">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+                <span>Add profile</span>
+            </button>
+        </div>
+    </div>
+
     <div class="more-menu-dropdown" id="more-menu-dropdown">
         <div class="menu-item" id="menu-new-tab">
             <span>New tab</span>
@@ -184,7 +241,6 @@
         </div>
     </div>
 
-    <!-- Security Popover -->
     <div class="security-popover" id="security-popover">
         <div class="popover-header">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="#23a55a" aria-hidden="true">
@@ -206,6 +262,17 @@
                 <span class="stat-val status-green">Strict</span>
             </div>
         </div>
+    </div>
+
+    <div class="tab-context-menu" id="tab-context-menu">
+        <div class="menu-item" data-action="new_tab">New tab to the right</div>
+        <div class="menu-item" data-action="duplicate">Duplicate tab</div>
+        <div class="menu-item" data-action="reload">Reload tab</div>
+        <div class="menu-item" data-action="pin">Pin tab</div>
+        <div class="menu-divider"></div>
+        <div class="menu-item" data-action="close">Close tab</div>
+        <div class="menu-item" data-action="close_others">Close other tabs</div>
+        <div class="menu-item" data-action="close_right">Close tabs to the right</div>
     </div>
 
     <script src="toolbar.js"></script>

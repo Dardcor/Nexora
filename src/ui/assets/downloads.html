@@ -202,6 +202,31 @@
             text-align: center;
             color: var(--text-secondary);
         }
+
+        @media (max-width: 768px) {
+            body {
+                flex-direction: column;
+            }
+            .sidebar {
+                width: 100%;
+                border-right: none;
+                border-bottom: 1px solid var(--border-subtle);
+                padding: 1rem;
+                flex-direction: row;
+                align-items: center;
+                overflow-x: auto;
+            }
+            .sidebar-menu {
+                flex-direction: row;
+            }
+            .main-content {
+                padding: 1.25rem;
+            }
+            .header-row {
+                flex-direction: column;
+                align-items: stretch;
+            }
+        }
     </style>
 </head>
 <body>

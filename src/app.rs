@@ -25,7 +25,6 @@ impl NexoraApp {
     pub fn new_with_mode(incognito: bool) -> Result<Self, Box<dyn std::error::Error>> {
         let config = NexoraConfig::default();
         let security = Arc::new(NexoraSecurityManager::new());
-        // Initialize encrypted vault and local offline SQLite database
         let vault = Arc::new(LocalVault::init("nexora_master_local_vault_key", None)?);
         let db = if incognito {
             Arc::new(NexoraDatabase::init_in_memory()?)
@@ -98,7 +97,6 @@ impl NexoraApp {
             tab.title = filtered_url.clone();
             tab.touch();
 
-            // Record visit in zero-knowledge local encrypted vault and local SQLite
             self.vault.record_visit(filtered_url.clone(), tab.title.clone(), tab.space_id.clone());
             let _ = self.db.record_visit(&filtered_url, &tab.title, &tab.space_id);
         }

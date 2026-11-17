@@ -30,15 +30,11 @@ impl fmt::Display for CryptoError {
 
 impl std::error::Error for CryptoError {}
 
-/// Zero-Knowledge Vault Encryption Engine.
-/// Derives keys using Argon2id and encrypts data using AES-256-GCM authenticated cipher.
 pub struct VaultCrypto {
     cipher: Aes256Gcm,
 }
 
 impl VaultCrypto {
-    /// Initialize VaultCrypto with a passphrase and optional salt.
-    /// If salt is None, a new random salt is generated.
     pub fn new_from_passphrase(passphrase: &str, salt: Option<&[u8]>) -> Result<(Self, Vec<u8>), CryptoError> {
         let actual_salt = match salt {
             Some(s) => s.to_vec(),
@@ -49,7 +45,7 @@ impl VaultCrypto {
             }
         };
 
-        let mut key = [0u8; 32]; // 256-bit AES key
+        let mut key = [0u8; 32];
         let argon2 = Argon2::default();
         
         argon2
@@ -62,8 +58,6 @@ impl VaultCrypto {
         Ok((Self { cipher }, actual_salt))
     }
 
-    /// Encrypt plaintext bytes.
-    /// Returns: [12-byte Nonce] + [Ciphertext with 16-byte Auth Tag].
     pub fn encrypt(&self, plaintext: &[u8]) -> Result<Vec<u8>, CryptoError> {
         let mut nonce_bytes = [0u8; NONCE_LEN];
         OsRng.fill_bytes(&mut nonce_bytes);
@@ -79,7 +73,6 @@ impl VaultCrypto {
         Ok(result)
     }
 
-    /// Decrypt ciphertext payload containing [12-byte Nonce] + [Ciphertext + Auth Tag].
     pub fn decrypt(&self, payload: &[u8]) -> Result<Vec<u8>, CryptoError> {
         if payload.len() < NONCE_LEN {
             return Err(CryptoError::InvalidDataLength);
@@ -108,7 +101,6 @@ mod tests {
 
         assert_ne!(encrypted, secret_message);
 
-        // Reconstruct cipher using the same passphrase and salt
         let (crypto_restore, _) = VaultCrypto::new_from_passphrase(passphrase, Some(&salt)).unwrap();
         let decrypted = crypto_restore.decrypt(&encrypted).unwrap();
 

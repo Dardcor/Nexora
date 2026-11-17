@@ -1,6 +1,8 @@
 (function() {
     'use strict';
 
+    const NEXORA_LOGO_DATA_URI = 'data:image/png;base64,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';
+
     const state = {
         tabs: [
             { id: 'tab-1', title: 'Nexora Home', url: 'nexora://home', favicon: '', pinned: false }
@@ -13,10 +15,12 @@
         searchEngine: 'google',
         zoomLevel: 100,
         selectedIndex: -1,
-        suggestions: []
+        suggestions: [],
+        profiles: [],
+        activeProfile: null,
+        contextTabId: null
     };
 
-    // DOM Elements
     const tabStrip = document.getElementById('tab-strip');
     const tabStripRow = document.getElementById('tab-strip-row');
     const dragSpacer = document.getElementById('drag-spacer');
@@ -33,6 +37,21 @@
     const btnSiteInfo = document.getElementById('btn-site-info');
     const btnShield = document.getElementById('btn-shield');
     const shieldCount = document.getElementById('shield-count');
+    const btnProfile = document.getElementById('btn-profile');
+    const profilePopup = document.getElementById('profile-popup');
+    const toolbarAvatarInitial = document.getElementById('toolbar-avatar-initial');
+    const popupAvatarCircle = document.getElementById('popup-avatar-circle');
+    const popupAvatarInitial = document.getElementById('popup-avatar-initial');
+    const popupProfileBadge = document.getElementById('popup-profile-badge');
+    const popupProfileName = document.getElementById('popup-profile-name');
+    const popupProfileEmail = document.getElementById('popup-profile-email');
+    const profileOtherList = document.getElementById('profile-other-list');
+    const profBtnPasswords = document.getElementById('prof-btn-passwords');
+    const profBtnGoogle = document.getElementById('prof-btn-google');
+    const profBtnCustomize = document.getElementById('prof-btn-customize');
+    const profBtnAccount = document.getElementById('prof-btn-account');
+    const profBtnSignout = document.getElementById('prof-btn-signout');
+    const profBtnAdd = document.getElementById('prof-btn-add');
     const btnMoreMenu = document.getElementById('btn-more-menu');
     const moreMenuDropdown = document.getElementById('more-menu-dropdown');
     const securityPopover = document.getElementById('security-popover');
@@ -47,13 +66,12 @@
     const tabSearchDropdown = document.getElementById('tab-search-dropdown');
     const tabSearchInput = document.getElementById('tab-search-input');
     const tabSearchList = document.getElementById('tab-search-list');
+    const tabContextMenu = document.getElementById('tab-context-menu');
 
-    // Caption Controls
     const btnWinMin = document.getElementById('btn-win-min');
     const btnWinMax = document.getElementById('btn-win-max');
     const btnWinClose = document.getElementById('btn-win-close');
 
-    // Menu Action Items
     const menuNewTab = document.getElementById('menu-new-tab');
     const menuHistory = document.getElementById('menu-history');
     const menuBookmarks = document.getElementById('menu-bookmarks');
@@ -87,23 +105,25 @@
         return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     }
 
-    // --- Overlay & Transparency Management ---
-
     function expandOverlay(height) {
         if (backdrop) backdrop.classList.add('show');
-        sendIpc({ type: 'expand_overlay', height: height || 360 });
+        sendIpc({ type: 'expand_overlay', height: height || 420 });
     }
 
     function closeOverlays() {
         const wasOpen = (moreMenuDropdown && moreMenuDropdown.classList.contains('show')) ||
+                        (profilePopup && profilePopup.classList.contains('show')) ||
                         (securityPopover && securityPopover.classList.contains('show')) ||
                         (omniboxDropdown && omniboxDropdown.classList.contains('show')) ||
-                        (tabSearchDropdown && tabSearchDropdown.classList.contains('show'));
+                        (tabSearchDropdown && tabSearchDropdown.classList.contains('show')) ||
+                        (tabContextMenu && tabContextMenu.classList.contains('show'));
 
         if (moreMenuDropdown) moreMenuDropdown.classList.remove('show');
+        if (profilePopup) profilePopup.classList.remove('show');
         if (securityPopover) securityPopover.classList.remove('show');
         if (omniboxDropdown) omniboxDropdown.classList.remove('show');
         if (tabSearchDropdown) tabSearchDropdown.classList.remove('show');
+        if (tabContextMenu) tabContextMenu.classList.remove('show');
         if (backdrop) backdrop.classList.remove('show');
         state.selectedIndex = -1;
 
@@ -111,8 +131,6 @@
             sendIpc({ type: 'collapse_overlay' });
         }
     }
-
-    // --- Tab Management ---
 
     function renderTabs() {
         tabStrip.innerHTML = '';
@@ -127,42 +145,25 @@
             let faviconHtml = '';
             const rawUrl = tab.url || '';
 
-            if (rawUrl.startsWith('nexora://history')) {
-                faviconHtml = `<svg class="tab-favicon-svg" viewBox="0 0 16 16" fill="currentColor"><path d="M8.515 1.019A7 7 0 0 0 8 1a7 7 0 1 0 7 7h-1.5a5.5 5.5 0 1 1-5.5-5.5v2.5l3.5-3.5L8 0v1.019ZM8 4.5a.75.75 0 0 1 .75.75v2.69l1.72 1.72a.75.75 0 1 1-1.06 1.06l-2-2A.75.75 0 0 1 7.25 8V5.25A.75.75 0 0 1 8 4.5Z"/></svg>`;
-            } else if (rawUrl.startsWith('nexora://bookmarks')) {
-                faviconHtml = `<svg class="tab-favicon-svg" viewBox="0 0 16 16" fill="#eab308"><path d="m8 1.75 2.122 4.298 4.745.69-3.434 3.346.81 4.726L8 12.585l-4.243 2.225.81-4.726L1.133 6.738l4.745-.69L8 1.75Z"/></svg>`;
-            } else if (rawUrl.startsWith('nexora://downloads')) {
-                faviconHtml = `<svg class="tab-favicon-svg" viewBox="0 0 16 16" fill="currentColor"><path d="M2.75 14A1.75 1.75 0 0 1 1 12.25v-2.5a.75.75 0 0 1 1.5 0v2.5c0 .138.112.25.25.25h10.5a.25.25 0 0 0 .25-.25v-2.5a.75.75 0 0 1 1.5 0v2.5A1.75 1.75 0 0 1 13.25 14H2.75Z"/><path d="M7.25 1.75v7.44L4.78 6.72a.75.75 0 0 0-1.06 1.06l3.75 3.75a.75.75 0 0 0 1.06 0l3.75-3.75a.75.75 0 1 0-1.06-1.06L8.75 9.19V1.75a.75.75 0 0 0-1.5 0Z"/></svg>`;
-            } else if (rawUrl.startsWith('nexora://settings')) {
-                faviconHtml = `<svg class="tab-favicon-svg" viewBox="0 0 16 16" fill="currentColor"><path d="M8 4.754a3.246 3.246 0 1 0 0 6.492 3.246 3.246 0 0 0 0-6.492ZM5.754 8a2.246 2.246 0 1 1 4.492 0 2.246 2.246 0 0 1-4.492 0Z"/><path d="M9.796 1.343c-.527-1.79-3.065-1.79-3.592 0l-.094.319a.873.873 0 0 1-1.255.52l-.292-.16c-1.64-.892-3.433.902-2.54 2.541l.159.292a.873.873 0 0 1-.52 1.255l-.319.094c-1.79.527-1.79 3.065 0 3.592l.319.094a.873.873 0 0 1 .52 1.255l-.16.292c-.892 1.64.901 3.434 2.541 2.54l.292-.159a.873.873 0 0 1 1.255.52l.094.319c.527 1.79 3.065 1.79 3.592 0l.094-.319a.873.873 0 0 1 1.255-.52l.292.16c1.64.893 3.434-.902 2.54-2.541l-.159-.292a.873.873 0 0 1 .52-1.255l.319-.094c1.79-.527 1.79-3.065 0-3.592l-.319-.094a.873.873 0 0 1-.52-1.255l.16-.292c.893-1.64-.902-3.433-2.541-2.54l-.292.159a.873.873 0 0 1-1.255-.52l-.094-.319Z"/></svg>`;
-            } else if (rawUrl.startsWith('nexora://home') || rawUrl === '' || rawUrl === 'about:blank') {
-                faviconHtml = `<svg class="tab-favicon-svg" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>`;
+            if (rawUrl.startsWith('nexora://') || rawUrl === '' || rawUrl === 'about:blank') {
+                faviconHtml = `<img class="tab-favicon-img" src="${NEXORA_LOGO_DATA_URI}" alt="Nexora" />`;
             } else {
                 const domain = getDomain(rawUrl);
                 const s2Url = domain ? `https://www.google.com/s2/favicons?domain=${domain}&sz=32` : '';
                 const primarySrc = tab.favicon || s2Url;
 
                 if (primarySrc) {
-                    const fallbackAttr = s2Url && primarySrc !== s2Url ? `this.src='${s2Url}'; this.onerror=function(){this.style.display='none'; this.nextElementSibling.style.display='block';};` : `this.style.display='none'; this.nextElementSibling.style.display='block';`;
-                    faviconHtml = `
-                        <img class="tab-favicon-img" src="${escapeHtml(primarySrc)}" alt="" onerror="${fallbackAttr}" />
-                        <svg class="tab-favicon-svg" style="display:none;" viewBox="0 0 16 16" fill="currentColor">
-                            <path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0ZM1.5 8a6.5 6.5 0 1 1 13 0 6.5 6.5 0 0 1-13 0Zm7-5.46v10.92a6.51 6.51 0 0 1-3.25-1.46 6.51 6.51 0 0 1 0-8 6.51 6.51 0 0 1 3.25-1.46Z"/>
-                        </svg>
-                    `;
+                    const fallbackAttr = s2Url && primarySrc !== s2Url 
+                        ? `this.src='${s2Url}'; this.onerror=function(){this.src='${NEXORA_LOGO_DATA_URI}';};` 
+                        : `this.src='${NEXORA_LOGO_DATA_URI}';`;
+                    faviconHtml = `<img class="tab-favicon-img" src="${escapeHtml(primarySrc)}" alt="" onerror="${fallbackAttr}" />`;
                 } else {
-                    faviconHtml = `
-                        <svg class="tab-favicon-svg" viewBox="0 0 16 16" fill="currentColor">
-                            <path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0ZM1.5 8a6.5 6.5 0 1 1 13 0 6.5 6.5 0 0 1-13 0Zm7-5.46v10.92a6.51 6.51 0 0 1-3.25-1.46 6.51 6.51 0 0 1 0-8 6.51 6.51 0 0 1 3.25-1.46Z"/>
-                        </svg>
-                    `;
+                    faviconHtml = `<img class="tab-favicon-img" src="${NEXORA_LOGO_DATA_URI}" alt="Nexora" />`;
                 }
             }
 
             if (tab.pinned) {
-                tabEl.innerHTML = `
-                    ${faviconHtml}
-                `;
+                tabEl.innerHTML = `${faviconHtml}`;
             } else {
                 tabEl.innerHTML = `
                     ${faviconHtml}
@@ -181,7 +182,7 @@
             });
 
             tabEl.addEventListener('auxclick', (e) => {
-                if (e.button === 1) { // Middle click closes tab
+                if (e.button === 1) {
                     e.preventDefault();
                     closeTab(tab.id);
                 }
@@ -189,12 +190,19 @@
 
             tabEl.addEventListener('contextmenu', (e) => {
                 e.preventDefault();
+                state.contextTabId = tab.id;
                 sendIpc({
                     type: 'tab_context_menu',
                     tab_id: tab.id,
                     screen_x: e.screenX,
                     screen_y: e.screenY
                 });
+                if (tabContextMenu) {
+                    tabContextMenu.style.left = `${Math.min(e.clientX, window.innerWidth - 210)}px`;
+                    tabContextMenu.style.top = '36px';
+                    tabContextMenu.classList.add('show');
+                    expandOverlay(280);
+                }
             });
 
             tabStrip.appendChild(tabEl);
@@ -249,40 +257,28 @@
         sendIpc({ type: 'close_tab', id: id });
     }
 
-    // --- Navigation ---
+    function navigateOmnibox(inputVal) {
+        const val = (inputVal || omniboxInput.value || '').trim();
+        if (!val) return;
 
-    function getSearchUrl(query) {
-        const encoded = encodeURIComponent(query);
-        switch (state.searchEngine) {
-            case 'duckduckgo':
-                return 'https://duckduckgo.com/?q=' + encoded;
-            case 'brave':
-                return 'https://search.brave.com/search?q=' + encoded;
-            case 'bing':
-                return 'https://www.bing.com/search?q=' + encoded;
-            case 'google':
-            default:
-                return 'https://www.google.com/search?q=' + encoded;
-        }
-    }
+        closeOverlays();
 
-    function navigate(rawInput) {
-        const input = (rawInput || '').trim();
-        if (!input) return;
-
-        let targetUrl = input;
-        if (input.startsWith('nexora://')) {
-            targetUrl = input;
-        } else if (input === 'about:blank' || input === 'home') {
-            targetUrl = 'nexora://home';
-        } else if (input.startsWith('http://') || input.startsWith('https://')) {
-            targetUrl = input;
-        } else if (input.startsWith('localhost') || input.startsWith('127.0.0.1')) {
-            targetUrl = 'http://' + input;
-        } else if (input.includes('.') && !input.includes(' ')) {
-            targetUrl = 'https://' + input;
+        let targetUrl = val;
+        if (val === 'nexora://home' || val === 'nexora://history' || val === 'nexora://bookmarks' || val === 'nexora://settings' || val === 'nexora://downloads') {
+            targetUrl = val;
+        } else if (val.startsWith('http://') || val.startsWith('https://')) {
+            targetUrl = val;
+        } else if (val.includes('.') && !val.includes(' ') && !val.includes('://')) {
+            targetUrl = 'https://' + val;
         } else {
-            targetUrl = getSearchUrl(input);
+            const searchEngines = {
+                google: 'https://www.google.com/search?q=',
+                duckduckgo: 'https://duckduckgo.com/?q=',
+                bing: 'https://www.bing.com/search?q=',
+                brave: 'https://search.brave.com/search?q='
+            };
+            const base = searchEngines[state.searchEngine] || searchEngines.google;
+            targetUrl = base + encodeURIComponent(val);
         }
 
         const active = state.tabs.find(t => t.id === state.activeTabId);
@@ -290,134 +286,84 @@
             active.url = targetUrl;
             omniboxInput.value = (targetUrl === 'nexora://home') ? '' : targetUrl;
             renderTabs();
-            closeOverlays();
-            sendIpc({ type: 'navigate', url: targetUrl });
         }
+
+        sendIpc({ type: 'navigate', url: targetUrl });
     }
 
-    // --- Omnibox Dropdown Autocomplete ---
+    function renderOmniboxSuggestions(matches) {
+        state.suggestions = matches || [];
+        state.selectedIndex = -1;
 
-    function renderOmniboxSuggestions(suggestions) {
-        if (!suggestions || suggestions.length === 0) {
+        if (!matches || matches.length === 0) {
             omniboxDropdown.classList.remove('show');
-            omniboxDropdown.innerHTML = '';
-            if (!moreMenuDropdown.classList.contains('show') && !securityPopover.classList.contains('show')) {
-                closeOverlays();
-            }
             return;
         }
 
-        state.suggestions = suggestions;
-        state.selectedIndex = -1;
         omniboxDropdown.innerHTML = '';
+        matches.forEach((m, idx) => {
+            const item = document.createElement('div');
+            item.className = 'omnibox-match-item';
+            item.dataset.index = idx;
 
-        suggestions.forEach((item, index) => {
-            const el = document.createElement('div');
-            el.className = 'suggestion-item';
-            el.dataset.index = index;
-
-            let iconSvg = '<svg class="suggestion-icon" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0ZM1.5 8a6.5 6.5 0 1 1 13 0 6.5 6.5 0 0 1-13 0Zm7-5.46v10.92a6.51 6.51 0 0 1-3.25-1.46 6.51 6.51 0 0 1 0-8 6.51 6.51 0 0 1 3.25-1.46Z"/></svg>';
-            if (item.match_type === 'bookmark') {
-                iconSvg = '<svg class="suggestion-icon" viewBox="0 0 16 16" fill="#eab308"><path d="m8 1.75 2.122 4.298 4.745.69-3.434 3.346.81 4.726L8 12.585l-4.243 2.225.81-4.726L1.133 6.738l4.745-.69L8 1.75Z"/></svg>';
-            } else if (item.match_type === 'history') {
-                iconSvg = '<svg class="suggestion-icon" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0Zm0 1.5a6.5 6.5 0 1 1 0 13 6.5 6.5 0 0 1 0-13ZM7.25 4v5.25h4v-1.5H8.75V4h-1.5Z"/></svg>';
+            let iconSvg = '';
+            if (m.match_type === 'bookmark') {
+                iconSvg = `<svg class="omnibox-match-icon" viewBox="0 0 16 16" fill="currentColor"><path d="m8 1.75 2.122 4.298 4.745.69-3.434 3.346.81 4.726L8 12.585l-4.243 2.225.81-4.726L1.133 6.738l4.745-.69L8 1.75Z"/></svg>`;
+            } else if (m.match_type === 'history') {
+                iconSvg = `<svg class="omnibox-match-icon" viewBox="0 0 16 16" fill="currentColor"><path d="M8.515 1.019A7 7 0 0 0 8 1a7 7 0 1 0 7 7h-1.5a5.5 5.5 0 1 1-5.5-5.5v2.5l3.5-3.5L8 0v1.019ZM8 4.5a.75.75 0 0 1 .75.75v2.69l1.72 1.72a.75.75 0 1 1-1.06 1.06l-2-2A.75.75 0 0 1 7.25 8V5.25A.75.75 0 0 1 8 4.5Z"/></svg>`;
+            } else {
+                iconSvg = `<svg class="omnibox-match-icon" viewBox="0 0 16 16" fill="currentColor"><path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/></svg>`;
             }
 
-            el.innerHTML = `
+            item.innerHTML = `
                 ${iconSvg}
-                <div class="suggestion-text">
-                    <span class="suggestion-title">${escapeHtml(item.title || item.url)}</span>
-                    <span class="suggestion-url">${escapeHtml(item.url)}</span>
-                </div>
+                <span class="omnibox-match-text">${escapeHtml(m.title || m.url)}</span>
+                <span class="omnibox-match-url">${escapeHtml(m.url)}</span>
             `;
 
-            el.addEventListener('mousedown', (e) => {
-                e.preventDefault();
-                navigate(item.url);
+            item.addEventListener('click', () => {
+                navigateOmnibox(m.url);
             });
 
-            omniboxDropdown.appendChild(el);
+            omniboxDropdown.appendChild(item);
         });
 
         omniboxDropdown.classList.add('show');
         expandOverlay(280);
     }
 
-    // --- Tab Search Dropdown ---
-
-    function renderTabSearchList(filterText) {
-        if (!tabSearchList) return;
-        const query = (filterText || '').toLowerCase();
+    function renderTabSearch(query) {
+        const q = (query || '').toLowerCase().trim();
         tabSearchList.innerHTML = '';
 
-        const matchedTabs = state.tabs.filter(t => {
-            if (!query) return true;
-            return (t.title && t.title.toLowerCase().includes(query)) ||
-                   (t.url && t.url.toLowerCase().includes(query));
+        const filtered = state.tabs.filter(t => {
+            return !q || (t.title && t.title.toLowerCase().includes(q)) || (t.url && t.url.toLowerCase().includes(q));
         });
 
-        if (matchedTabs.length === 0) {
-            tabSearchList.innerHTML = '<div style="padding: 12px; color: var(--text-muted); text-align: center; font-size: 12px;">No matching tabs found</div>';
+        if (filtered.length === 0) {
+            tabSearchList.innerHTML = `<div style="padding: 12px 16px; color: var(--text-muted); text-align: center;">No matching tabs found</div>`;
             return;
         }
 
-        matchedTabs.forEach(t => {
+        filtered.forEach(tab => {
             const item = document.createElement('div');
-            item.className = `tab-search-item ${t.id === state.activeTabId ? 'active' : ''}`;
+            item.className = 'tab-search-item';
+            const iconSrc = tab.favicon || NEXORA_LOGO_DATA_URI;
             item.innerHTML = `
-                <div class="tab-search-item-info">
-                    <span class="tab-search-item-title">${escapeHtml(t.title)}</span>
-                    <span class="tab-search-item-url">${escapeHtml(t.url)}</span>
-                </div>
-                <button class="tab-search-item-close" title="Close Tab">&times;</button>
+                <img src="${escapeHtml(iconSrc)}" style="width: 16px; height: 16px; border-radius: 2px;" alt="" />
+                <span style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(tab.title)}</span>
             `;
-
-            item.addEventListener('click', (e) => {
-                if (e.target.classList.contains('tab-search-item-close')) {
-                    e.stopPropagation();
-                    closeTab(t.id);
-                    renderTabSearchList(tabSearchInput.value);
-                } else {
-                    switchTab(t.id);
-                    closeOverlays();
-                }
+            item.addEventListener('click', () => {
+                switchTab(tab.id);
+                closeOverlays();
             });
-
             tabSearchList.appendChild(item);
         });
     }
 
-    function toggleTabSearch() {
-        const isOpen = tabSearchDropdown.classList.contains('show');
-        closeOverlays();
-        if (!isOpen) {
-            tabSearchDropdown.classList.add('show');
-            tabSearchInput.value = '';
-            renderTabSearchList('');
-            expandOverlay(320);
-            setTimeout(() => tabSearchInput.focus(), 50);
-        }
-    }
-
-    if (btnTabMenu) {
-        btnTabMenu.addEventListener('click', (e) => {
-            e.stopPropagation();
-            toggleTabSearch();
-        });
-    }
-
-    if (tabSearchInput) {
-        tabSearchInput.addEventListener('input', (e) => {
-            renderTabSearchList(e.target.value);
-        });
-    }
-
-    // --- Find in Page Bar ---
-
     function toggleFindBar() {
-        if (!findBar) return;
-        const isOpen = findBar.classList.contains('show');
-        if (isOpen) {
+        const isShown = findBar.classList.contains('show');
+        if (isShown) {
             findBar.classList.remove('show');
             sendIpc({ type: 'stop_find' });
         } else {
@@ -427,86 +373,65 @@
         }
     }
 
-    if (findClose) {
-        findClose.addEventListener('click', () => {
-            toggleFindBar();
-        });
-    }
-
     if (findInput) {
         findInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
                 e.preventDefault();
-                const forward = !e.shiftKey;
-                sendIpc({ type: 'find_in_page', query: findInput.value, forward: forward });
+                const q = findInput.value.trim();
+                if (q) {
+                    sendIpc({ type: 'find_in_page', query: q, forward: !e.shiftKey });
+                }
             } else if (e.key === 'Escape') {
-                e.preventDefault();
                 toggleFindBar();
-            }
-        });
-
-        findInput.addEventListener('input', (e) => {
-            if (e.target.value) {
-                sendIpc({ type: 'find_in_page', query: e.target.value, forward: true });
-            } else {
-                sendIpc({ type: 'stop_find' });
-            }
-        });
-    }
-
-    if (findNext) {
-        findNext.addEventListener('click', () => {
-            if (findInput.value) {
-                sendIpc({ type: 'find_in_page', query: findInput.value, forward: true });
             }
         });
     }
 
     if (findPrev) {
         findPrev.addEventListener('click', () => {
-            if (findInput.value) {
-                sendIpc({ type: 'find_in_page', query: findInput.value, forward: false });
-            }
+            const q = findInput.value.trim();
+            if (q) sendIpc({ type: 'find_in_page', query: q, forward: false });
         });
     }
 
-    // --- Reader Mode ---
-
-    if (btnReader) {
-        btnReader.addEventListener('click', () => {
-            sendIpc({ type: 'toggle_reader' });
+    if (findNext) {
+        findNext.addEventListener('click', () => {
+            const q = findInput.value.trim();
+            if (q) sendIpc({ type: 'find_in_page', query: q, forward: true });
         });
     }
 
-    // --- Event Listeners ---
+    if (findClose) {
+        findClose.addEventListener('click', toggleFindBar);
+    }
+
+    btnNewTab.addEventListener('click', () => createNewTab());
+    btnBack.addEventListener('click', () => sendIpc({ type: 'go_back' }));
+    btnForward.addEventListener('click', () => sendIpc({ type: 'go_forward' }));
+    btnReload.addEventListener('click', () => sendIpc({ type: 'reload' }));
 
     omniboxForm.addEventListener('submit', (e) => {
         e.preventDefault();
-        if (state.selectedIndex >= 0 && state.suggestions[state.selectedIndex]) {
-            navigate(state.suggestions[state.selectedIndex].url);
-        } else {
-            navigate(omniboxInput.value);
-        }
-        omniboxInput.blur();
+        navigateOmnibox();
     });
 
-    omniboxInput.addEventListener('input', (e) => {
-        const val = e.target.value.trim();
-        if (val.length === 0 || val.startsWith('nexora://')) {
+    omniboxInput.addEventListener('input', () => {
+        const val = omniboxInput.value;
+        if (!val.trim()) {
             omniboxDropdown.classList.remove('show');
-            omniboxDropdown.innerHTML = '';
-            if (!moreMenuDropdown.classList.contains('show') && !securityPopover.classList.contains('show')) {
-                closeOverlays();
-            }
-        } else {
-            sendIpc({ type: 'omnibox_query', query: val });
+            return;
         }
+        sendIpc({ type: 'omnibox_query', query: val });
+    });
+
+    omniboxInput.addEventListener('focus', () => {
+        omniboxInput.select();
     });
 
     omniboxInput.addEventListener('keydown', (e) => {
-        if (!omniboxDropdown.classList.contains('show')) return;
+        const items = omniboxDropdown.querySelectorAll('.omnibox-match-item');
+        if (items.length === 0) return;
 
-        const items = omniboxDropdown.querySelectorAll('.suggestion-item');
         if (e.key === 'ArrowDown') {
             e.preventDefault();
             state.selectedIndex = (state.selectedIndex + 1) % items.length;
@@ -522,179 +447,219 @@
 
     function updateSelection(items) {
         items.forEach((item, idx) => {
-            if (idx === state.selectedIndex) {
-                item.classList.add('selected');
-                omniboxInput.value = state.suggestions[idx].url;
-            } else {
-                item.classList.remove('selected');
-            }
+            item.classList.toggle('selected', idx === state.selectedIndex);
         });
+        if (state.selectedIndex >= 0 && state.suggestions[state.selectedIndex]) {
+            omniboxInput.value = state.suggestions[state.selectedIndex].url;
+        }
     }
-
-    btnNewTab.addEventListener('click', () => createNewTab());
-    btnBack.addEventListener('click', () => sendIpc({ type: 'go_back' }));
-    btnForward.addEventListener('click', () => sendIpc({ type: 'go_forward' }));
-    btnReload.addEventListener('click', () => sendIpc({ type: 'reload' }));
 
     btnStar.addEventListener('click', () => {
         const active = state.tabs.find(t => t.id === state.activeTabId);
-        if (active && active.url && !active.url.startsWith('nexora://')) {
-            sendIpc({ type: 'toggle_bookmark', url: active.url, title: active.title });
+        if (active) {
+            sendIpc({
+                type: 'toggle_bookmark',
+                url: active.url,
+                title: active.title
+            });
         }
     });
 
-    // 3-Dot More Menu Click
-    btnMoreMenu.addEventListener('click', (e) => {
+    if (btnReader) {
+        btnReader.addEventListener('click', () => {
+            sendIpc({ type: 'toggle_reader' });
+        });
+    }
+
+    btnTabMenu.addEventListener('click', (e) => {
         e.stopPropagation();
+        const isOpen = tabSearchDropdown.classList.contains('show');
         closeOverlays();
-        sendIpc({ type: 'open_more_menu' });
+        if (!isOpen) {
+            renderTabSearch('');
+            tabSearchDropdown.classList.add('show');
+            expandOverlay(320);
+            setTimeout(() => {
+                tabSearchInput.focus();
+            }, 50);
+        }
     });
 
-    // Site Security Popover Click
-    btnSiteInfo.addEventListener('click', (e) => {
+    tabSearchInput.addEventListener('input', () => {
+        renderTabSearch(tabSearchInput.value);
+    });
+
+    btnMoreMenu.addEventListener('click', (e) => {
         e.stopPropagation();
-        toggleSecurityPopover();
+        sendIpc({ type: 'open_more_menu' });
     });
 
     btnShield.addEventListener('click', (e) => {
         e.stopPropagation();
-        toggleSecurityPopover();
-    });
-
-    function toggleSecurityPopover() {
         const isOpen = securityPopover.classList.contains('show');
         closeOverlays();
         if (!isOpen) {
             securityPopover.classList.add('show');
-            expandOverlay(220);
+            expandOverlay(280);
         }
-    }
+    });
 
-    // Click outside backdrop
+    btnProfile.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const isOpen = profilePopup.classList.contains('show');
+        closeOverlays();
+        if (!isOpen) {
+            profilePopup.classList.add('show');
+            expandOverlay(420);
+        }
+    });
+
+    profBtnPasswords.addEventListener('click', () => {
+        closeOverlays();
+        sendIpc({ type: 'navigate', url: 'nexora://settings' });
+    });
+
+    profBtnGoogle.addEventListener('click', () => {
+        closeOverlays();
+        createNewTab('https://myaccount.google.com', 'Google Account');
+    });
+
+    profBtnCustomize.addEventListener('click', () => {
+        closeOverlays();
+        const newName = prompt('Enter new profile name:', state.activeProfile ? state.activeProfile.name : 'Dard');
+        if (newName && newName.trim()) {
+            sendIpc({
+                type: 'add_profile',
+                name: newName.trim(),
+                email: state.activeProfile ? state.activeProfile.email : '',
+                badge: 'Pro',
+                color: '#4285f4'
+            });
+        }
+    });
+
+    profBtnAccount.addEventListener('click', () => {
+        closeOverlays();
+        sendIpc({ type: 'navigate', url: 'nexora://settings' });
+    });
+
+    profBtnSignout.addEventListener('click', () => {
+        closeOverlays();
+        if (state.profiles.length > 0) {
+            sendIpc({ type: 'switch_profile', id: state.profiles[0].id });
+        }
+    });
+
+    profBtnAdd.addEventListener('click', () => {
+        closeOverlays();
+        const name = prompt('Enter name for the new Nexora profile:');
+        if (name && name.trim()) {
+            sendIpc({
+                type: 'add_profile',
+                name: name.trim(),
+                email: `${name.trim().toLowerCase()}@nexora.local`,
+                badge: '',
+                color: '#34a853'
+            });
+        }
+    });
+
     backdrop.addEventListener('click', closeOverlays);
 
-    // Menu Actions (Fallback)
-    if (menuNewTab) menuNewTab.addEventListener('click', () => { closeOverlays(); createNewTab(); });
-    if (menuHistory) menuHistory.addEventListener('click', () => { closeOverlays(); navigate('nexora://history'); });
-    if (menuBookmarks) menuBookmarks.addEventListener('click', () => { closeOverlays(); navigate('nexora://bookmarks'); });
-    if (menuDownloads) menuDownloads.addEventListener('click', () => { closeOverlays(); navigate('nexora://downloads'); });
-    if (menuSettings) menuSettings.addEventListener('click', () => { closeOverlays(); navigate('nexora://settings'); });
-    if (menuExit) menuExit.addEventListener('click', () => { closeOverlays(); sendIpc({ type: 'close_window' }); });
+    menuNewTab.addEventListener('click', () => {
+        createNewTab();
+        closeOverlays();
+    });
+    menuHistory.addEventListener('click', () => {
+        sendIpc({ type: 'navigate', url: 'nexora://history' });
+        closeOverlays();
+    });
+    menuBookmarks.addEventListener('click', () => {
+        sendIpc({ type: 'navigate', url: 'nexora://bookmarks' });
+        closeOverlays();
+    });
+    menuDownloads.addEventListener('click', () => {
+        sendIpc({ type: 'navigate', url: 'nexora://downloads' });
+        closeOverlays();
+    });
+    menuSettings.addEventListener('click', () => {
+        sendIpc({ type: 'navigate', url: 'nexora://settings' });
+        closeOverlays();
+    });
+    menuExit.addEventListener('click', () => {
+        sendIpc({ type: 'close_window' });
+    });
 
-    zoomMinus.addEventListener('click', (e) => {
-        e.stopPropagation();
-        if (state.zoomLevel > 50) {
-            state.zoomLevel -= 10;
-            zoomLevelEl.textContent = state.zoomLevel + '%';
-            sendIpc({ type: 'set_zoom', level: state.zoomLevel });
+    zoomMinus.addEventListener('click', () => {
+        window.__nexora_zoom_out();
+    });
+    zoomPlus.addEventListener('click', () => {
+        window.__nexora_zoom_in();
+    });
+
+    btnWinMin.addEventListener('click', () => sendIpc({ type: 'minimize_window' }));
+    btnWinMax.addEventListener('click', () => sendIpc({ type: 'toggle_maximize_window' }));
+    btnWinClose.addEventListener('click', () => sendIpc({ type: 'close_window' }));
+
+    dragSpacer.addEventListener('mousedown', (e) => {
+        if (e.button === 0) sendIpc({ type: 'drag_window' });
+    });
+
+    tabStripRow.addEventListener('mousedown', (e) => {
+        if (e.target === tabStripRow || e.target === tabStrip) {
+            if (e.button === 0) sendIpc({ type: 'drag_window' });
         }
     });
 
-    zoomPlus.addEventListener('click', (e) => {
-        e.stopPropagation();
-        if (state.zoomLevel < 200) {
-            state.zoomLevel += 10;
-            zoomLevelEl.textContent = state.zoomLevel + '%';
-            sendIpc({ type: 'set_zoom', level: state.zoomLevel });
-        }
-    });
-
-    // Window Caption Controls
-    if (btnWinMin) btnWinMin.addEventListener('click', () => sendIpc({ type: 'minimize_window' }));
-    if (btnWinMax) btnWinMax.addEventListener('click', () => sendIpc({ type: 'toggle_maximize_window' }));
-    if (btnWinClose) btnWinClose.addEventListener('click', () => sendIpc({ type: 'close_window' }));
-
-    // Window Dragging
-    function setupDrag(element) {
-        if (!element) return;
-        element.addEventListener('mousedown', (e) => {
-            if (e.button === 0 && e.target === element) {
-                sendIpc({ type: 'drag_window' });
-            }
-        });
-        element.addEventListener('dblclick', (e) => {
-            if (e.target === element) {
-                sendIpc({ type: 'toggle_maximize_window' });
-            }
+    if (tabContextMenu) {
+        tabContextMenu.querySelectorAll('.menu-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const action = item.dataset.action;
+                const targetId = state.contextTabId || state.activeTabId;
+                closeOverlays();
+                if (window.__nexora_tab_context_action) {
+                    window.__nexora_tab_context_action(action, targetId);
+                }
+            });
         });
     }
 
-    setupDrag(dragSpacer);
-    setupDrag(tabStripRow);
-    setupDrag(tabStrip);
-
-    // Keyboard Shortcuts inside Toolbar WebView
-    document.addEventListener('keydown', (e) => {
-        if (e.altKey && (e.key === 'f' || e.key === 'F' || e.key === 'e' || e.key === 'E')) {
+    window.addEventListener('keydown', (e) => {
+        if (e.ctrlKey && e.key === 't') {
             e.preventDefault();
-            closeOverlays();
-            sendIpc({ type: 'open_more_menu' });
-            return;
-        }
-
-        if (e.ctrlKey) {
-            if (e.shiftKey && (e.key === 't' || e.key === 'T')) {
-                e.preventDefault();
-                sendIpc({ type: 'reopen_closed_tab' });
-                return;
-            } else if (e.shiftKey && (e.key === 'n' || e.key === 'N')) {
-                e.preventDefault();
-                sendIpc({ type: 'new_incognito' });
-                return;
-            } else if (e.key === 't' || e.key === 'T') {
-                e.preventDefault();
-                createNewTab();
-            } else if (e.key === 'n' || e.key === 'N') {
-                e.preventDefault();
-                sendIpc({ type: 'new_window' });
-            } else if (e.key === 'w' || e.key === 'W') {
-                e.preventDefault();
-                closeTab(state.activeTabId);
-            } else if (e.key === 'f' || e.key === 'F') {
-                e.preventDefault();
-                toggleFindBar();
-            } else if (e.key === 'l' || e.key === 'L') {
-                e.preventDefault();
-                omniboxInput.focus();
-                omniboxInput.select();
-            } else if (e.key === 'r' || e.key === 'R') {
-                e.preventDefault();
-                sendIpc({ type: 'reload' });
-            } else if (e.key === 'h' || e.key === 'H') {
-                e.preventDefault();
-                navigate('nexora://history');
-            } else if (e.key === 'j' || e.key === 'J') {
-                e.preventDefault();
-                navigate('nexora://downloads');
-            } else if (e.key === 'd' || e.key === 'D') {
-                e.preventDefault();
-                const active = state.tabs.find(t => t.id === state.activeTabId);
-                if (active && active.url && !active.url.startsWith('nexora://')) {
-                    sendIpc({ type: 'toggle_bookmark', url: active.url, title: active.title });
-                }
-            } else if (e.shiftKey && (e.key === 'O' || e.key === 'o')) {
-                e.preventDefault();
-                navigate('nexora://bookmarks');
-            } else if (e.key === '=' || e.key === '+') {
-                e.preventDefault();
-                window.__nexora_zoom_in();
-            } else if (e.key === '-' || e.key === '_') {
-                e.preventDefault();
-                window.__nexora_zoom_out();
-            } else if (e.key === '0') {
-                e.preventDefault();
-                window.__nexora_zoom_reset();
-            }
+            createNewTab();
+        } else if (e.ctrlKey && e.key === 'w') {
+            e.preventDefault();
+            closeTab(state.activeTabId);
+        } else if (e.ctrlKey && e.key === 'r') {
+            e.preventDefault();
+            sendIpc({ type: 'reload' });
+        } else if (e.ctrlKey && e.key === 'l') {
+            e.preventDefault();
+            omniboxInput.focus();
+            omniboxInput.select();
+        } else if (e.ctrlKey && e.key === 'h') {
+            e.preventDefault();
+            sendIpc({ type: 'navigate', url: 'nexora://history' });
+        } else if (e.ctrlKey && e.key === 'j') {
+            e.preventDefault();
+            sendIpc({ type: 'navigate', url: 'nexora://downloads' });
+        } else if (e.ctrlKey && e.shiftKey && (e.key === 'O' || e.key === 'o')) {
+            e.preventDefault();
+            sendIpc({ type: 'navigate', url: 'nexora://bookmarks' });
+        } else if (e.ctrlKey && e.key === 'f') {
+            e.preventDefault();
+            toggleFindBar();
+        } else if (e.altKey && e.key === 'r') {
+            e.preventDefault();
+            sendIpc({ type: 'toggle_reader' });
+        } else if (e.key === 'F11') {
+            e.preventDefault();
+            sendIpc({ type: 'toggle_fullscreen' });
         } else if (e.key === 'Escape') {
-            if (findBar && findBar.classList.contains('show')) {
-                toggleFindBar();
-            } else {
-                closeOverlays();
-            }
+            closeOverlays();
         }
     });
-
-    // --- Global Hooks Called from Rust ---
 
     window.__nexora_create_new_tab = createNewTab;
     window.__nexora_close_active_tab = function() {
@@ -738,17 +703,17 @@
     };
 
     window.__nexora_update_url = function(url) {
+        if (!url || url.startsWith('data:') || url === 'about:blank') {
+            return;
+        }
         const active = state.tabs.find(t => t.id === state.activeTabId);
         if (active) {
-            if (url === 'about:blank' && active.url && active.url.startsWith('nexora://')) {
-                return;
-            }
             active.url = url;
-            omniboxInput.value = (url === 'nexora://home' || url === 'about:blank') ? '' : url;
-            if (url === 'nexora://history') active.title = 'History';
-            else if (url === 'nexora://bookmarks') active.title = 'Bookmarks';
-            else if (url === 'nexora://settings') active.title = 'Settings';
-            else if (url === 'nexora://downloads') active.title = 'Downloads';
+            omniboxInput.value = (url === 'nexora://home') ? '' : url;
+            if (url === 'nexora://history') active.title = 'History - Nexora';
+            else if (url === 'nexora://bookmarks') active.title = 'Bookmarks - Nexora';
+            else if (url === 'nexora://settings') active.title = 'Settings - Nexora';
+            else if (url === 'nexora://downloads') active.title = 'Downloads - Nexora';
             renderTabs();
         }
     };
@@ -828,6 +793,63 @@
         renderOmniboxSuggestions(suggestions);
     };
 
+    window.__nexora_update_profiles = function(profiles) {
+        if (!Array.isArray(profiles) || profiles.length === 0) return;
+        state.profiles = profiles;
+        state.activeProfile = profiles.find(p => p.is_active) || profiles[0];
+
+        if (toolbarAvatarInitial && state.activeProfile) {
+            const initial = (state.activeProfile.name || 'D').charAt(0).toUpperCase();
+            toolbarAvatarInitial.textContent = initial;
+            if (state.activeProfile.color) {
+                toolbarAvatarInitial.parentElement.style.background = state.activeProfile.color;
+            }
+        }
+
+        if (popupAvatarInitial && state.activeProfile) {
+            const initial = (state.activeProfile.name || 'D').charAt(0).toUpperCase();
+            popupAvatarInitial.textContent = initial;
+            if (state.activeProfile.color) {
+                popupAvatarCircle.style.background = state.activeProfile.color;
+            }
+        }
+
+        if (popupProfileName && state.activeProfile) {
+            popupProfileName.textContent = state.activeProfile.name;
+        }
+
+        if (popupProfileEmail && state.activeProfile) {
+            popupProfileEmail.textContent = state.activeProfile.email;
+        }
+
+        if (popupProfileBadge && state.activeProfile) {
+            popupProfileBadge.textContent = state.activeProfile.badge || 'Pro';
+            popupProfileBadge.style.display = state.activeProfile.badge ? 'block' : 'none';
+        }
+
+        if (profileOtherList) {
+            profileOtherList.innerHTML = '';
+            const others = profiles.filter(p => p.id !== state.activeProfile.id);
+            others.forEach(p => {
+                const row = document.createElement('div');
+                row.className = 'profile-item-row';
+                const initial = (p.name || 'P').charAt(0).toUpperCase();
+                const color = p.color || '#4285f4';
+                row.innerHTML = `
+                    <div class="profile-circle-mini" style="background: ${color};">
+                        <span>${initial}</span>
+                    </div>
+                    <span class="profile-item-name">${escapeHtml(p.name)}</span>
+                `;
+                row.addEventListener('click', () => {
+                    closeOverlays();
+                    sendIpc({ type: 'switch_profile', id: p.id });
+                });
+                profileOtherList.appendChild(row);
+            });
+        }
+    };
+
     window.__nexora_tab_context_action = function(action, tabId) {
         const targetId = tabId || state.activeTabId;
         const index = state.tabs.findIndex(t => t.id === targetId);
@@ -900,5 +922,6 @@
         }
     };
 
+    sendIpc({ type: 'get_profiles' });
     renderTabs();
 })();

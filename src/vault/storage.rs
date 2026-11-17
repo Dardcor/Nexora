@@ -18,8 +18,6 @@ pub struct LocalVault {
 }
 
 impl LocalVault {
-    /// Initialize the Local Vault with a master passphrase.
-    /// The vault files are stored in the platform-standard local app data directory.
     pub fn init(passphrase: &str, custom_dir: Option<PathBuf>) -> Result<Self, Box<dyn std::error::Error>> {
         let vault_dir = match custom_dir {
             Some(dir) => dir,
@@ -56,7 +54,6 @@ impl LocalVault {
             sessions: RwLock::new(Vec::new()),
         };
 
-        // Load or initialize default data
         vault.load_all()?;
 
         if vault.spaces.read().is_empty() {
@@ -66,8 +63,6 @@ impl LocalVault {
 
         Ok(vault)
     }
-
-    // --- Loading & Decrypting ---
 
     fn load_all(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         let _ = self.load_history();
@@ -107,8 +102,6 @@ impl LocalVault {
         Ok(())
     }
 
-    // --- History Management ---
-
     pub fn load_history(&self) -> Result<(), Box<dyn std::error::Error>> {
         let items: Vec<HistoryItem> = self.read_and_decrypt("history.enc")?;
         *self.history.write() = items;
@@ -131,7 +124,7 @@ impl LocalVault {
                 hist.insert(0, HistoryItem::new(url, title, space_id));
             }
             if hist.len() > 10_000 {
-                hist.truncate(10_000); // Cap history to keep it ultra lightweight
+                hist.truncate(10_000);
             }
         }
         let _ = self.save_history();
@@ -151,8 +144,6 @@ impl LocalVault {
         self.history.write().clear();
         self.save_history()
     }
-
-    // --- Bookmarks Management ---
 
     pub fn load_bookmarks(&self) -> Result<(), Box<dyn std::error::Error>> {
         let items: Vec<BookmarkItem> = self.read_and_decrypt("bookmarks.enc")?;
@@ -179,8 +170,6 @@ impl LocalVault {
         self.bookmarks.read().clone()
     }
 
-    // --- Spaces Management ---
-
     pub fn load_spaces(&self) -> Result<(), Box<dyn std::error::Error>> {
         let items: Vec<BrowserSpace> = self.read_and_decrypt("spaces.enc")?;
         *self.spaces.write() = items;
@@ -195,8 +184,6 @@ impl LocalVault {
     pub fn get_spaces(&self) -> Vec<BrowserSpace> {
         self.spaces.read().clone()
     }
-
-    // --- Sessions Management ---
 
     pub fn load_sessions(&self) -> Result<(), Box<dyn std::error::Error>> {
         let items: Vec<TabSession> = self.read_and_decrypt("sessions.enc")?;

@@ -43,7 +43,19 @@ pub struct DownloadRecord {
 pub struct OmniboxMatch {
     pub url: String,
     pub title: String,
-    pub match_type: String, // "bookmark", "history", "search"
+    pub match_type: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProfileRecord {
+    pub id: String,
+    pub name: String,
+    pub email: String,
+    pub avatar_url: String,
+    pub badge: String,
+    pub color: String,
+    pub is_active: bool,
+    pub created_at: i64,
 }
 
 pub struct NexoraDatabase {
@@ -52,7 +64,6 @@ pub struct NexoraDatabase {
 }
 
 impl NexoraDatabase {
-    /// Initialize local SQLite database in offline, secure, platform-native directory.
     pub fn init(custom_dir: Option<PathBuf>) -> Result<Self, Box<dyn std::error::Error>> {
         let db_dir = match custom_dir {
             Some(dir) => dir,
@@ -70,24 +81,22 @@ impl NexoraDatabase {
         Self::setup_connection(conn, db_path)
     }
 
-    /// Initialize an ephemeral in-memory SQLite database for Incognito windows.
     pub fn init_in_memory() -> Result<Self, Box<dyn std::error::Error>> {
         let conn = Connection::open_in_memory()?;
         Self::setup_connection(conn, PathBuf::from(":memory:"))
     }
 
     fn setup_connection(conn: Connection, db_path: PathBuf) -> Result<Self, Box<dyn std::error::Error>> {
-        // Performance & Reliability pragmas
         conn.execute_batch(
             "PRAGMA busy_timeout = 5000;
              PRAGMA journal_mode = WAL;
              PRAGMA synchronous = NORMAL;
              PRAGMA foreign_keys = ON;
              PRAGMA temp_store = MEMORY;
+             PRAGMA secure_delete = FAST;
              PRAGMA cache_size = -64000;",
         )?;
 
-        // Create schema
         conn.execute_batch(
             "CREATE TABLE IF NOT EXISTS history (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -130,8 +139,25 @@ impl NexoraDatabase {
                 blocked_domain TEXT NOT NULL,
                 timestamp INTEGER NOT NULL,
                 action TEXT NOT NULL DEFAULT 'blocked'
-            );",
+            );
+
+            CREATE TABLE IF NOT EXISTS profiles (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                email TEXT NOT NULL,
+                avatar_url TEXT NOT NULL DEFAULT '',
+                badge TEXT NOT NULL DEFAULT 'Pro',
+                color TEXT NOT NULL DEFAULT '#4285f4',
+                is_active INTEGER NOT NULL DEFAULT 0,
+                created_at INTEGER NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_profiles_active ON profiles(is_active);",
         )?;
+
+        let _ = conn.execute(
+            "DELETE FROM history WHERE url LIKE 'data:%' OR url LIKE 'about:%' OR url LIKE 'nexora:%';",
+            [],
+        );
 
         let db = Self {
             conn: Arc::new(Mutex::new(conn)),
@@ -145,7 +171,6 @@ impl NexoraDatabase {
     fn seed_defaults(&self) -> SqlResult<()> {
         let conn = self.conn.lock();
 
-        // Seed default settings
         let defaults = [
             ("search_engine", "google"),
             ("shield_enabled", "true"),
@@ -161,7 +186,6 @@ impl NexoraDatabase {
             )?;
         }
 
-        // Seed default bookmarks if table empty
         let count: i64 = conn.query_row("SELECT COUNT(*) FROM bookmarks", [], |r| r.get(0))?;
         if count == 0 {
             let initial_bookmarks = [
@@ -182,12 +206,40 @@ impl NexoraDatabase {
             }
         }
 
+        let prof_count: i64 = conn.query_row("SELECT COUNT(*) FROM profiles", [], |r| r.get(0))?;
+        if prof_count == 0 {
+            let now = Utc::now().timestamp_millis();
+            let initial_profiles = [
+                ("prof-main", "Dard", "dardcorxyz@gmail.com", "", "Pro", "#4285f4", 1),
+                ("prof-acip", "Acip", "acip@nexora.local", "", "", "#795548", 0),
+                ("prof-afdaniko", "Afdaniko", "afdaniko@nexora.local", "", "", "#f57c00", 0),
+                ("prof-akehu", "Akehu", "akehu@nexora.local", "", "", "#00acc1", 0),
+                ("prof-ardi", "ARDI", "ardi@nexora.local", "", "", "#e53935", 0),
+                ("prof-berlaut", "Berlaut", "berlaut@nexora.local", "", "", "#fb8c00", 0),
+                ("prof-de", "DE", "de@nexora.local", "", "", "#1e88e5", 0),
+            ];
+
+            for (id, name, email, avatar, badge, color, is_active) in initial_profiles {
+                let _ = conn.execute(
+                    "INSERT INTO profiles (id, name, email, avatar_url, badge, color, is_active, created_at)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                    params![id, name, email, avatar, badge, color, is_active, now],
+                );
+            }
+        }
+
         Ok(())
     }
 
-    // --- History Operations ---
-
     pub fn record_visit(&self, url: &str, title: &str, space_id: &str) -> SqlResult<()> {
+        if url.is_empty() 
+            || url.starts_with("data:") 
+            || url.starts_with("about:") 
+            || url.starts_with("nexora://") 
+        {
+            return Ok(());
+        }
+
         let conn = self.conn.lock();
         let now = Utc::now().timestamp_millis();
 
@@ -262,8 +314,6 @@ impl NexoraDatabase {
         Ok(())
     }
 
-    // --- Bookmarks Operations ---
-
     pub fn add_bookmark(&self, url: &str, title: &str, folder: &str) -> SqlResult<String> {
         let conn = self.conn.lock();
         let id = Uuid::new_v4().to_string();
@@ -325,8 +375,6 @@ impl NexoraDatabase {
         Ok(())
     }
 
-    // --- Downloads Operations ---
-
     pub fn record_download(
         &self,
         id: &str,
@@ -384,8 +432,6 @@ impl NexoraDatabase {
         Ok(())
     }
 
-    // --- Omnibox Autocomplete Suggestions ---
-
     pub fn get_omnibox_suggestions(&self, query: &str) -> SqlResult<Vec<OmniboxMatch>> {
         let clean = query.trim();
         if clean.is_empty() {
@@ -396,7 +442,6 @@ impl NexoraDatabase {
         let pattern = format!("%{}%", clean);
         let mut matches = Vec::new();
 
-        // 1. Check matching bookmarks first
         {
             let mut b_stmt = conn.prepare(
                 "SELECT url, title FROM bookmarks WHERE url LIKE ?1 OR title LIKE ?1 LIMIT 3",
@@ -415,7 +460,6 @@ impl NexoraDatabase {
             }
         }
 
-        // 2. Check matching history entries
         {
             let mut h_stmt = conn.prepare(
                 "SELECT url, title FROM history WHERE url LIKE ?1 OR title LIKE ?1 ORDER BY visit_count DESC, visit_time DESC LIMIT 4",
@@ -439,8 +483,6 @@ impl NexoraDatabase {
         Ok(matches)
     }
 
-    // --- Settings Operations ---
-
     pub fn get_setting(&self, key: &str, default_val: &str) -> String {
         let conn = self.conn.lock();
         conn.query_row(
@@ -460,8 +502,6 @@ impl NexoraDatabase {
         Ok(())
     }
 
-    // --- Shield Logging ---
-
     pub fn record_shield_block(&self, domain: &str) -> SqlResult<()> {
         let conn = self.conn.lock();
         let now = Utc::now().timestamp_millis();
@@ -477,6 +517,96 @@ impl NexoraDatabase {
         conn.query_row("SELECT COUNT(*) FROM shield_stats", [], |r| r.get(0))
             .unwrap_or(0)
     }
+
+    pub fn get_profiles(&self) -> SqlResult<Vec<ProfileRecord>> {
+        let conn = self.conn.lock();
+        let mut stmt = conn.prepare(
+            "SELECT id, name, email, avatar_url, badge, color, is_active, created_at FROM profiles ORDER BY is_active DESC, created_at ASC",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            let active_int: i32 = row.get(6)?;
+            Ok(ProfileRecord {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                email: row.get(2)?,
+                avatar_url: row.get(3)?,
+                badge: row.get(4)?,
+                color: row.get(5)?,
+                is_active: active_int != 0,
+                created_at: row.get(7)?,
+            })
+        })?;
+
+        let mut results = Vec::new();
+        for r in rows {
+            results.push(r?);
+        }
+        Ok(results)
+    }
+
+    pub fn get_active_profile(&self) -> SqlResult<Option<ProfileRecord>> {
+        let conn = self.conn.lock();
+        let mut stmt = conn.prepare(
+            "SELECT id, name, email, avatar_url, badge, color, is_active, created_at FROM profiles WHERE is_active = 1 LIMIT 1",
+        )?;
+        let mut rows = stmt.query_map([], |row| {
+            let active_int: i32 = row.get(6)?;
+            Ok(ProfileRecord {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                email: row.get(2)?,
+                avatar_url: row.get(3)?,
+                badge: row.get(4)?,
+                color: row.get(5)?,
+                is_active: active_int != 0,
+                created_at: row.get(7)?,
+            })
+        })?;
+
+        if let Some(r) = rows.next() {
+            Ok(Some(r?))
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub fn switch_profile(&self, id: &str) -> SqlResult<()> {
+        let conn = self.conn.lock();
+        conn.execute("UPDATE profiles SET is_active = 0", [])?;
+        conn.execute("UPDATE profiles SET is_active = 1 WHERE id = ?1", params![id])?;
+        Ok(())
+    }
+
+    pub fn add_profile(&self, name: &str, email: &str, badge: &str, color: &str) -> SqlResult<ProfileRecord> {
+        let conn = self.conn.lock();
+        let id = format!("prof-{}", Uuid::new_v4());
+        let now = Utc::now().timestamp_millis();
+        conn.execute(
+            "INSERT INTO profiles (id, name, email, avatar_url, badge, color, is_active, created_at)
+             VALUES (?1, ?2, ?3, '', ?4, ?5, 0, ?6)",
+            params![id, name, email, badge, color, now],
+        )?;
+
+        Ok(ProfileRecord {
+            id,
+            name: name.to_string(),
+            email: email.to_string(),
+            avatar_url: String::new(),
+            badge: badge.to_string(),
+            color: color.to_string(),
+            is_active: false,
+            created_at: now,
+        })
+    }
+
+    pub fn update_profile(&self, id: &str, name: &str, email: &str, badge: &str, color: &str) -> SqlResult<()> {
+        let conn = self.conn.lock();
+        conn.execute(
+            "UPDATE profiles SET name = ?1, email = ?2, badge = ?3, color = ?4 WHERE id = ?5",
+            params![name, email, badge, color, id],
+        )?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -488,7 +618,6 @@ mod tests {
         let temp_dir = std::env::temp_dir().join(format!("nexora_test_{}", Uuid::new_v4()));
         let db = NexoraDatabase::init(Some(temp_dir.clone())).expect("DB init failed");
 
-        // 1. History test
         db.record_visit("https://github.com/Dardcor/Nexora", "Nexora Repo", "default").unwrap();
         db.record_visit("https://github.com/Dardcor/Nexora", "Nexora Browser", "default").unwrap();
         let history = db.query_history("Nexora", 10).unwrap();
@@ -496,28 +625,29 @@ mod tests {
         assert_eq!(history[0].visit_count, 2);
         assert_eq!(history[0].title, "Nexora Browser");
 
-        // 2. Bookmark test
         let b_id = db.add_bookmark("https://rust-lang.org", "Rust Language", "Bookmarks Bar").unwrap();
         assert!(!b_id.is_empty());
         assert!(db.is_bookmarked("https://rust-lang.org"));
         let bookmarks = db.get_bookmarks().unwrap();
         assert!(bookmarks.iter().any(|b| b.url == "https://rust-lang.org"));
 
-        // 3. Omnibox suggestions
         let suggestions = db.get_omnibox_suggestions("rust").unwrap();
         assert!(!suggestions.is_empty());
         assert_eq!(suggestions[0].match_type, "bookmark");
 
-        // 4. Settings test
         db.set_setting("search_engine", "duckduckgo").unwrap();
         let val = db.get_setting("search_engine", "google");
         assert_eq!(val, "duckduckgo");
 
-        // 5. Shield stats
         db.record_shield_block("tracker.analytics.com").unwrap();
         assert!(db.get_shield_total_blocked() >= 1);
+
+        let profiles = db.get_profiles().unwrap();
+        assert!(!profiles.is_empty());
+        let active = db.get_active_profile().unwrap();
+        assert!(active.is_some());
+        assert_eq!(active.unwrap().name, "Dard");
 
         let _ = fs::remove_dir_all(temp_dir);
     }
 }
-

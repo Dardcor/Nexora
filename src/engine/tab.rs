@@ -30,7 +30,6 @@ impl BrowserTab {
         }
     }
 
-    /// Mark the tab as active, updating timestamp and waking from hibernation if needed.
     pub fn touch(&mut self) {
         self.last_active = Utc::now();
         if self.is_hibernated {
@@ -38,11 +37,9 @@ impl BrowserTab {
         }
     }
 
-    /// Put tab into deep hibernation, freeing up RAM.
     pub fn hibernate(&mut self) {
         if !self.is_hibernated {
             self.is_hibernated = true;
-            // Estimated ~75MB RAM saved per hibernated webview tab
             self.memory_saved_mb += 75.0;
         }
     }

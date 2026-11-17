@@ -10,8 +10,8 @@ permissions:
   contents: write
 
 jobs:
-  build:
-    name: Build - ${{ matrix.target }}
+  build-desktop:
+    name: Build Desktop - ${{ matrix.target }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -63,7 +63,7 @@ jobs:
         run: |
           tar -czvf ${{ matrix.asset_name }} -C target/${{ matrix.target }}/release ${{ matrix.binary_name }}
 
-      - name: Upload Release Asset
+      - name: Upload Desktop Asset
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
@@ -71,3 +71,47 @@ jobs:
           draft: false
           prerelease: false
           generate_release_notes: true
+
+  build-android:
+    name: Build Mobile - Android AArch64
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+
+      - name: Install cargo-ndk
+        run: cargo install cargo-ndk
+
+      - name: Set up Android NDK
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r26b
+
+      - name: Build Android Core Library
+        run: |
+          cargo ndk -t arm64-v8a build --lib --release
+
+      - name: Package Android Artifacts
+        run: |
+          mkdir -p android_dist
+          find target/aarch64-linux-android/release -name "*.so" -exec cp {} android_dist/ \; || true
+          tar -czvf nexora-android-arm64.tar.gz android_dist
+
+      - name: Upload Android Release Asset
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: nexora-android-arm64.tar.gz
+          draft: false
+          prerelease: false
