@@ -129,6 +129,7 @@
 
             <div class="page-loading-bar" id="page-loading-bar"></div>
         </div>
+        <div class="bookmarks-bar" id="bookmarks-bar"></div>
     </header>
 
     <div class="find-bar" id="find-bar">
@@ -336,6 +337,67 @@
         <div class="menu-item" data-action="close">Close tab</div>
         <div class="menu-item" data-action="close_others">Close other tabs</div>
         <div class="menu-item" data-action="close_right">Close tabs to the right</div>
+    </div>
+
+    <div class="bookmark-edit-dialog" id="bookmark-edit-dialog">
+        <div class="dialog-header">
+            <span class="dialog-title">Bookmark Added</span>
+            <button class="dialog-close" id="btn-bm-dialog-close">&times;</button>
+        </div>
+        <div class="dialog-body">
+            <div class="dialog-field">
+                <label class="dialog-label">Name</label>
+                <input type="text" class="dialog-input" id="bm-dialog-name">
+            </div>
+            <div class="dialog-field">
+                <label class="dialog-label">Folder</label>
+                <select class="dialog-select" id="bm-dialog-folder">
+                    <option value="Bookmarks Bar">Bookmarks Bar</option>
+                    <option value="Other Bookmarks">Other Bookmarks</option>
+                </select>
+            </div>
+        </div>
+        <div class="dialog-footer">
+            <button class="dialog-btn-danger" id="btn-bm-dialog-remove">Remove</button>
+            <button class="dialog-btn-primary" id="btn-bm-dialog-done">Done</button>
+        </div>
+    </div>
+
+    <div class="clear-data-dialog" id="clear-data-dialog">
+        <div class="dialog-header">
+            <span class="dialog-title">Clear Browsing Data</span>
+            <button class="dialog-close" id="btn-clear-dialog-close">&times;</button>
+        </div>
+        <div class="dialog-body">
+            <div class="dialog-field">
+                <label class="dialog-label">Time range</label>
+                <select class="dialog-select" id="clear-range-select">
+                    <option value="1">Last hour</option>
+                    <option value="24">Last 24 hours</option>
+                    <option value="168">Last 7 days</option>
+                    <option value="720">Last 4 weeks</option>
+                    <option value="0" selected>All time</option>
+                </select>
+            </div>
+            <div class="dialog-checkbox-group">
+                <label class="dialog-checkbox-label">
+                    <input type="checkbox" id="chk-clear-history" checked>
+                    <span>Browsing history</span>
+                </label>
+                <label class="dialog-checkbox-label">
+                    <input type="checkbox" id="chk-clear-downloads" checked>
+                    <span>Download history</span>
+                </label>
+                <label class="dialog-checkbox-label">
+                    <input type="checkbox" id="chk-clear-cookies" checked>
+                    <span>Cookies and cached site data</span>
+                </label>
+            </div>
+        </div>
+        <div class="dialog-footer">
+            <button class="dialog-btn-secondary" id="btn-clear-dialog-cancel">Cancel</button>
+            <button class="dialog-btn-primary" id="btn-clear-dialog-confirm">Clear data</button>
+        </div>
     </div>
 
     <script src="toolbar.js"></script>

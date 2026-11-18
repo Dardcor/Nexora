@@ -8,6 +8,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use uuid::Uuid;
 
+use super::crypto::VaultCrypto;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HistoryRecord {
     pub id: i64,
@@ -58,6 +60,16 @@ pub struct ProfileRecord {
     pub created_at: i64,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SecureVaultRecord {
+    pub id: String,
+    pub category: String,
+    pub identifier: String,
+    pub ciphertext: Vec<u8>,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
 pub struct NexoraDatabase {
     conn: Arc<Mutex<Connection>>,
     pub db_path: PathBuf,
@@ -90,10 +102,10 @@ impl NexoraDatabase {
         conn.execute_batch(
             "PRAGMA busy_timeout = 5000;
              PRAGMA journal_mode = WAL;
-             PRAGMA synchronous = NORMAL;
+             PRAGMA synchronous = FULL;
              PRAGMA foreign_keys = ON;
              PRAGMA temp_store = MEMORY;
-             PRAGMA secure_delete = FAST;
+             PRAGMA secure_delete = ON;
              PRAGMA cache_size = -64000;",
         )?;
 
@@ -151,7 +163,17 @@ impl NexoraDatabase {
                 is_active INTEGER NOT NULL DEFAULT 0,
                 created_at INTEGER NOT NULL
             );
-            CREATE INDEX IF NOT EXISTS idx_profiles_active ON profiles(is_active);",
+            CREATE INDEX IF NOT EXISTS idx_profiles_active ON profiles(is_active);
+
+            CREATE TABLE IF NOT EXISTS secure_vault (
+                id TEXT PRIMARY KEY,
+                category TEXT NOT NULL,
+                identifier TEXT NOT NULL,
+                ciphertext BLOB NOT NULL,
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_vault_cat ON secure_vault(category, identifier);",
         )?;
 
         let _ = conn.execute(
@@ -607,6 +629,78 @@ impl NexoraDatabase {
         )?;
         Ok(())
     }
+
+    pub fn clear_history_range(&self, since_timestamp: i64) -> SqlResult<usize> {
+        let conn = self.conn.lock();
+        let count = if since_timestamp <= 0 {
+            conn.execute("DELETE FROM history", [])?
+        } else {
+            conn.execute("DELETE FROM history WHERE visit_time >= ?1", params![since_timestamp])?
+        };
+        Ok(count)
+    }
+
+    pub fn get_bookmarks_bar(&self) -> SqlResult<Vec<BookmarkRecord>> {
+        let conn = self.conn.lock();
+        let mut stmt = conn.prepare(
+            "SELECT id, url, title, folder, created_at, favicon FROM bookmarks WHERE folder = 'Bookmarks Bar' ORDER BY created_at ASC",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            Ok(BookmarkRecord {
+                id: row.get(0)?,
+                url: row.get(1)?,
+                title: row.get(2)?,
+                folder: row.get(3)?,
+                created_at: row.get(4)?,
+                favicon: row.get(5)?,
+            })
+        })?;
+
+        let mut results = Vec::new();
+        for r in rows {
+            results.push(r?);
+        }
+        Ok(results)
+    }
+
+    pub fn save_secure_secret(&self, category: &str, identifier: &str, plaintext: &[u8], crypto: &VaultCrypto) -> Result<(), Box<dyn std::error::Error>> {
+        let ciphertext = crypto.encrypt(plaintext)?;
+        let conn = self.conn.lock();
+        let id = format!("{}:{}", category, identifier);
+        let now = Utc::now().timestamp_millis();
+        conn.execute(
+            "INSERT INTO secure_vault (id, category, identifier, ciphertext, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?5)
+             ON CONFLICT(id) DO UPDATE SET ciphertext = excluded.ciphertext, updated_at = excluded.updated_at",
+            params![id, category, identifier, ciphertext, now],
+        )?;
+        Ok(())
+    }
+
+    pub fn get_secure_secret(&self, category: &str, identifier: &str, crypto: &VaultCrypto) -> Result<Option<Vec<u8>>, Box<dyn std::error::Error>> {
+        let conn = self.conn.lock();
+        let id = format!("{}:{}", category, identifier);
+        let mut stmt = conn.prepare("SELECT ciphertext FROM secure_vault WHERE id = ?1 LIMIT 1")?;
+        let mut rows = stmt.query_map(params![id], |row| {
+            let data: Vec<u8> = row.get(0)?;
+            Ok(data)
+        })?;
+
+        if let Some(r) = rows.next() {
+            let cipher = r?;
+            let decrypted = crypto.decrypt(&cipher)?;
+            Ok(Some(decrypted))
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub fn delete_secure_secret(&self, category: &str, identifier: &str) -> SqlResult<bool> {
+        let conn = self.conn.lock();
+        let id = format!("{}:{}", category, identifier);
+        let count = conn.execute("DELETE FROM secure_vault WHERE id = ?1", params![id])?;
+        Ok(count > 0)
+    }
 }
 
 #[cfg(test)]
@@ -651,6 +745,19 @@ mod tests {
         db.sign_out().unwrap();
         let after_signout = db.get_active_profile().unwrap().unwrap();
         assert_eq!(after_signout.email, "");
+
+        let bar_bookmarks = db.get_bookmarks_bar().unwrap();
+        assert!(!bar_bookmarks.is_empty());
+
+        let (crypto, _) = VaultCrypto::new_from_passphrase("test_master_passphrase", None).unwrap();
+        db.save_secure_secret("credentials", "user@example.com", b"my_secret_password_123", &crypto).unwrap();
+        let retrieved = db.get_secure_secret("credentials", "user@example.com", &crypto).unwrap();
+        assert_eq!(retrieved, Some(b"my_secret_password_123".to_vec()));
+
+        let cleared_count = db.clear_history_range(0).unwrap();
+        assert!(cleared_count >= 1);
+        let history_after = db.query_history("Nexora", 10).unwrap();
+        assert!(history_after.is_empty());
 
         let _ = fs::remove_dir_all(temp_dir);
     }

@@ -5,12 +5,11 @@ use std::sync::Arc;
 use crate::config::NexoraConfig;
 use crate::engine::{BrowserTab, TabFreezer};
 use crate::security::NexoraSecurityManager;
-use crate::vault::{LocalVault, NexoraDatabase};
+use crate::vault::NexoraDatabase;
 
 pub struct NexoraApp {
     pub config: NexoraConfig,
     pub security: Arc<NexoraSecurityManager>,
-    pub vault: Arc<LocalVault>,
     pub db: Arc<NexoraDatabase>,
     pub tabs: Arc<RwLock<Vec<BrowserTab>>>,
     pub active_tab_id: RwLock<Option<String>>,
@@ -25,7 +24,6 @@ impl NexoraApp {
     pub fn new_with_mode(incognito: bool) -> Result<Self, Box<dyn std::error::Error>> {
         let config = NexoraConfig::default();
         let security = Arc::new(NexoraSecurityManager::new());
-        let vault = Arc::new(LocalVault::init("nexora_master_local_vault_key", None)?);
         let db = if incognito {
             Arc::new(NexoraDatabase::init_in_memory()?)
         } else {
@@ -49,7 +47,6 @@ impl NexoraApp {
         Ok(Self {
             config,
             security,
-            vault,
             db,
             tabs,
             active_tab_id,
@@ -97,7 +94,6 @@ impl NexoraApp {
             tab.title = filtered_url.clone();
             tab.touch();
 
-            self.vault.record_visit(filtered_url.clone(), tab.title.clone(), tab.space_id.clone());
             let _ = self.db.record_visit(&filtered_url, &tab.title, &tab.space_id);
         }
 

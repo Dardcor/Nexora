@@ -60,6 +60,10 @@ button {
     z-index: 10;
 }
 
+.nexora-chrome.has-bookmarks-bar {
+    height: 102px;
+}
+
 .tab-strip-row {
     display: flex;
     align-items: center;
@@ -187,6 +191,28 @@ button {
 
 .tab-close-btn:hover {
     background-color: rgba(255, 255, 255, 0.15);
+    color: var(--text-bright);
+}
+
+.tab-audio-btn {
+    width: 18px;
+    height: 18px;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    color: var(--text-muted);
+    margin-left: 2px;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: color 0.1s ease;
+}
+
+.tab-audio-btn.playing {
+    display: flex;
+}
+
+.tab-audio-btn:hover {
     color: var(--text-bright);
 }
 
@@ -1099,6 +1125,218 @@ button {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.bookmarks-bar {
+    display: flex;
+    align-items: center;
+    height: 28px;
+    padding: 0 8px;
+    gap: 4px;
+    background-color: var(--toolbar-bg);
+    border-bottom: 1px solid var(--border-color);
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+
+.bookmarks-bar.hidden {
+    display: none;
+}
+
+.bookmarks-bar::-webkit-scrollbar {
+    display: none;
+}
+
+.bookmark-bar-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 22px;
+    padding: 0 8px;
+    border-radius: 4px;
+    color: var(--text-normal);
+    font-size: 11.5px;
+    cursor: pointer;
+    text-decoration: none;
+    white-space: nowrap;
+    transition: background-color 0.1s ease;
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.bookmark-bar-item:hover {
+    background-color: var(--hover-bg);
+    color: var(--text-bright);
+}
+
+.bookmark-bar-icon {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+}
+
+.bookmark-bar-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.bookmark-edit-dialog,
+.clear-data-dialog {
+    display: none;
+    position: fixed;
+    top: 75px;
+    right: 50px;
+    width: 320px;
+    background-color: var(--menu-bg);
+    border: 1px solid var(--menu-border);
+    border-radius: 8px;
+    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.65);
+    z-index: 99999;
+    flex-direction: column;
+    padding: 16px;
+}
+
+.clear-data-dialog {
+    right: auto;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 380px;
+}
+
+.bookmark-edit-dialog.show,
+.clear-data-dialog.show {
+    display: flex;
+}
+
+.dialog-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+}
+
+.dialog-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-bright);
+}
+
+.dialog-close {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 18px;
+    cursor: pointer;
+    line-height: 1;
+}
+
+.dialog-close:hover {
+    color: var(--text-bright);
+}
+
+.dialog-body {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.dialog-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.dialog-label {
+    font-size: 11.5px;
+    color: var(--text-muted);
+}
+
+.dialog-input,
+.dialog-select {
+    background: var(--omnibox-bg);
+    border: 1px solid var(--omnibox-border);
+    border-radius: 4px;
+    color: var(--text-bright);
+    font-size: 12.5px;
+    padding: 6px 8px;
+    outline: none;
+}
+
+.dialog-input:focus,
+.dialog-select:focus {
+    border-color: #4285f4;
+}
+
+.dialog-checkbox-group {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.dialog-checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12.5px;
+    color: var(--text-normal);
+    cursor: pointer;
+}
+
+.dialog-footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.dialog-btn-primary {
+    background-color: #4285f4;
+    color: #ffffff;
+    border: none;
+    border-radius: 4px;
+    padding: 6px 14px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.1s ease;
+}
+
+.dialog-btn-primary:hover {
+    background-color: #3367d6;
+}
+
+.dialog-btn-secondary {
+    background-color: transparent;
+    color: var(--text-normal);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 6px 14px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: background-color 0.1s ease;
+}
+
+.dialog-btn-secondary:hover {
+    background-color: var(--hover-bg);
+}
+
+.dialog-btn-danger {
+    background-color: transparent;
+    color: #f28b82;
+    border: 1px solid rgba(242, 139, 130, 0.4);
+    border-radius: 4px;
+    padding: 6px 14px;
+    font-size: 12px;
+    cursor: pointer;
+    margin-right: auto;
+    transition: background-color 0.1s ease;
+}
+
+.dialog-btn-danger:hover {
+    background-color: rgba(242, 139, 130, 0.15);
 }
 
 @media (max-width: 640px) {

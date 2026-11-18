@@ -277,6 +277,7 @@ pub enum BrowserAction {
     SwitchProfile(String),
     AddProfile { name: String, email: String, badge: String, color: String },
     SignOut,
+    BookmarksBarToggled(bool),
 }
 
 fn create_tab_webview(
@@ -472,7 +473,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let initial_width = initial_physical.width;
     let initial_height = initial_physical.height;
 
-    let initial_toolbar_h = (TOOLBAR_LOGICAL_HEIGHT * scale_factor) as u32;
+    let show_bm_bar_setting = app.db.get_setting("show_bookmarks_bar", "true") == "true";
+    let initial_logical_h = if show_bm_bar_setting { TOOLBAR_LOGICAL_HEIGHT + 28.0 } else { TOOLBAR_LOGICAL_HEIGHT };
+    let initial_toolbar_h = (initial_logical_h * scale_factor) as u32;
     let initial_content_h = initial_height.saturating_sub(initial_toolbar_h);
 
     let mut content_bounds = Rect {
@@ -527,6 +530,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             if let Some(id) = v.get("id").and_then(|i| i.as_str()) {
                                 let _ = proxy_toolbar.send_event(BrowserAction::SwitchTab(id.to_string()));
                             }
+                        }
+                        "bookmarks_bar_toggled" => {
+                            let visible = v.get("visible").and_then(|b| b.as_bool()).unwrap_or(true);
+                            let _ = proxy_toolbar.send_event(BrowserAction::BookmarksBarToggled(visible));
                         }
                         "drag_window" => {
                             let _ = proxy_toolbar.send_event(BrowserAction::DragWindow);
@@ -652,10 +659,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
+    if let Ok(bookmarks) = app.db.get_bookmarks_bar() {
+        if let Ok(json) = serde_json::to_string(&bookmarks) {
+            let script = format!("if (window.__nexora_render_bookmarks_bar) window.__nexora_render_bookmarks_bar({});", json);
+            let _ = toolbar_webview.evaluate_script(&script);
+        }
+    }
+
+    let bm_toggle_script = format!("if (window.__nexora_toggle_bookmarks_bar_visibility) window.__nexora_toggle_bookmarks_bar_visibility({});", show_bm_bar_setting);
+    let _ = toolbar_webview.evaluate_script(&bm_toggle_script);
+
     let mut tab_webviews: HashMap<String, wry::WebView> = HashMap::new();
     let mut tab_urls: HashMap<String, String> = HashMap::new();
     let mut active_tab_id: String = "tab-1".to_string();
     let mut closed_tabs: Vec<(String, String)> = Vec::new();
+    let mut is_bookmarks_bar_visible = show_bm_bar_setting;
 
     let initial_wv = create_tab_webview(
         &window,
@@ -708,7 +726,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 let _ = toolbar_webview.evaluate_script(&update_script);
                             } else if let Some(cleaned) = app.security.inspect_and_filter_url(&url) {
                                 let _ = active_wv.load_url(&cleaned);
-                                app.vault.record_visit(cleaned.clone(), url.clone(), "default".to_string());
                                 let _ = app.db.record_visit(&cleaned, &url, "default");
                             }
                         }
@@ -1022,6 +1039,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     "clear_history" => {
                                         let _ = app.db.clear_history();
                                     }
+                                    "clear_browsing_data" => {
+                                        let hours = v.get("hours").and_then(|h| h.as_i64()).unwrap_or(0);
+                                        let clear_hist = v.get("clear_history").and_then(|b| b.as_bool()).unwrap_or(true);
+                                        let clear_dl = v.get("clear_downloads").and_then(|b| b.as_bool()).unwrap_or(true);
+                                        if clear_hist {
+                                            if hours <= 0 {
+                                                let _ = app.db.clear_history();
+                                            } else {
+                                                let cutoff = chrono::Utc::now().timestamp() - (hours * 3600);
+                                                let _ = app.db.clear_history_range(cutoff);
+                                            }
+                                        }
+                                        if clear_dl {
+                                            let _ = app.db.clear_downloads();
+                                        }
+                                    }
                                     "get_bookmarks" => {
                                         let bookmarks = app.db.get_bookmarks().unwrap_or_default();
                                         if let Ok(json) = serde_json::to_string(&bookmarks) {
@@ -1029,18 +1062,49 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                                 let script = format!("if (window.__nexora_render_bookmarks) window.__nexora_render_bookmarks({});", json);
                                                 let _ = wv.evaluate_script(&script);
                                             }
-                                            let tb_script = format!("if (window.__nexora_render_bookmarks_bar) window.__nexora_render_bookmarks_bar({});", json);
-                                            let _ = toolbar_webview.evaluate_script(&tb_script);
+                                        }
+                                        if let Ok(bar_items) = app.db.get_bookmarks_bar() {
+                                            if let Ok(json) = serde_json::to_string(&bar_items) {
+                                                let tb_script = format!("if (window.__nexora_render_bookmarks_bar) window.__nexora_render_bookmarks_bar({});", json);
+                                                let _ = toolbar_webview.evaluate_script(&tb_script);
+                                            }
                                         }
                                     }
                                     "delete_bookmark" => {
                                         if let Some(url) = v.get("url").and_then(|u| u.as_str()) {
                                             let _ = app.db.remove_bookmark(url);
-                                            if let Ok(bookmarks) = app.db.get_bookmarks() {
+                                            if let Ok(bookmarks) = app.db.get_bookmarks_bar() {
                                                 if let Ok(json) = serde_json::to_string(&bookmarks) {
                                                     let tb_script = format!("if (window.__nexora_render_bookmarks_bar) window.__nexora_render_bookmarks_bar({});", json);
                                                     let _ = toolbar_webview.evaluate_script(&tb_script);
                                                 }
+                                            }
+                                        }
+                                    }
+                                    "update_bookmark_details" => {
+                                        if let (Some(url), Some(title), Some(folder)) = (
+                                            v.get("url").and_then(|u| u.as_str()),
+                                            v.get("title").and_then(|t| t.as_str()),
+                                            v.get("folder").and_then(|f| f.as_str()),
+                                        ) {
+                                            let _ = app.db.remove_bookmark(url);
+                                            let _ = app.db.add_bookmark(url, title, folder);
+                                            if let Ok(bookmarks) = app.db.get_bookmarks_bar() {
+                                                if let Ok(json) = serde_json::to_string(&bookmarks) {
+                                                    let tb_script = format!("if (window.__nexora_render_bookmarks_bar) window.__nexora_render_bookmarks_bar({});", json);
+                                                    let _ = toolbar_webview.evaluate_script(&tb_script);
+                                                }
+                                            }
+                                        }
+                                    }
+                                    "toggle_tab_mute" => {
+                                        if let (Some(id), Some(muted)) = (v.get("id").and_then(|i| i.as_str()), v.get("muted").and_then(|m| m.as_bool())) {
+                                            if let Some(wv) = tab_webviews.get(id) {
+                                                let mute_script = format!(
+                                                    "document.querySelectorAll('audio, video').forEach(el => {{ el.muted = {}; }});",
+                                                    muted
+                                                );
+                                                let _ = wv.evaluate_script(&mute_script);
                                             }
                                         }
                                     }
@@ -1189,7 +1253,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             let _ = app.db.add_bookmark(&url, &title, "Bookmarks Bar");
                             let _ = toolbar_webview.evaluate_script("if (window.__nexora_set_bookmarked) window.__nexora_set_bookmarked(true);");
                         }
-                        if let Ok(bookmarks) = app.db.get_bookmarks() {
+                        if let Ok(bookmarks) = app.db.get_bookmarks_bar() {
                             if let Ok(json) = serde_json::to_string(&bookmarks) {
                                 let script = format!("if (window.__nexora_render_bookmarks_bar) window.__nexora_render_bookmarks_bar({});", json);
                                 let _ = toolbar_webview.evaluate_script(&script);
@@ -1215,7 +1279,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                     BrowserAction::CollapseOverlay => {
                         let sf = window.scale_factor();
-                        let normal_h = (TOOLBAR_LOGICAL_HEIGHT * sf) as u32;
+                        let logical_h = if is_bookmarks_bar_visible { TOOLBAR_LOGICAL_HEIGHT + 28.0 } else { TOOLBAR_LOGICAL_HEIGHT };
+                        let normal_h = (logical_h * sf) as u32;
                         let inner = window.inner_size();
                         let _ = toolbar_webview.set_bounds(Rect {
                             position: PhysicalPosition::new(0, 0).into(),
@@ -1400,7 +1465,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         window.set_maximized(!window.is_maximized());
                     }
                     BrowserAction::CloseWindow => {
-                        let _ = app.vault.save_history();
                         *control_flow = ControlFlow::Exit;
                     }
                     BrowserAction::GetProfiles => {
@@ -1438,6 +1502,30 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             }
                         }
                     }
+                    BrowserAction::BookmarksBarToggled(visible) => {
+                        is_bookmarks_bar_visible = visible;
+                        let logical_h = if visible { TOOLBAR_LOGICAL_HEIGHT + 28.0 } else { TOOLBAR_LOGICAL_HEIGHT };
+                        let sf = window.scale_factor();
+                        let toolbar_h = (logical_h * sf) as u32;
+                        let inner = window.inner_size();
+                        let content_h = inner.height.saturating_sub(toolbar_h);
+
+                        content_bounds = Rect {
+                            position: PhysicalPosition::new(0, toolbar_h as i32).into(),
+                            size: PhysicalSize::new(inner.width, content_h).into(),
+                        };
+
+                        let _ = toolbar_webview.set_bounds(Rect {
+                            position: PhysicalPosition::new(0, 0).into(),
+                            size: PhysicalSize::new(inner.width, toolbar_h).into(),
+                        });
+
+                        for (_, wv) in tab_webviews.iter() {
+                            let _ = wv.set_bounds(content_bounds);
+                        }
+
+                        bring_toolbar_to_top();
+                    }
                 }
             }
             Event::WindowEvent {
@@ -1445,7 +1533,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 ..
             } => {
                 let sf = window.scale_factor();
-                let toolbar_h = (TOOLBAR_LOGICAL_HEIGHT * sf) as u32;
+                let logical_h = if is_bookmarks_bar_visible { TOOLBAR_LOGICAL_HEIGHT + 28.0 } else { TOOLBAR_LOGICAL_HEIGHT };
+                let toolbar_h = (logical_h * sf) as u32;
                 let new_width = physical_size.width;
                 let new_height = physical_size.height;
                 let content_h = new_height.saturating_sub(toolbar_h);
@@ -1470,8 +1559,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 event: WindowEvent::CloseRequested,
                 ..
             } => {
-                let _ = app.vault.save_history();
                 *control_flow = ControlFlow::Exit;
+            }
+            Event::MainEventsCleared => {
+                app.freezer.sweep_and_hibernate(&app.tabs, Some(&active_tab_id));
             }
             _ => (),
         }

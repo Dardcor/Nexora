@@ -95,6 +95,23 @@
     const zoomPlus = document.getElementById('zoom-plus');
     const zoomLevelEl = document.getElementById('zoom-level');
 
+    const bookmarksBar = document.getElementById('bookmarks-bar');
+    const bookmarkEditDialog = document.getElementById('bookmark-edit-dialog');
+    const bmDialogName = document.getElementById('bm-dialog-name');
+    const bmDialogFolder = document.getElementById('bm-dialog-folder');
+    const btnBmDialogClose = document.getElementById('btn-bm-dialog-close');
+    const btnBmDialogDone = document.getElementById('btn-bm-dialog-done');
+    const btnBmDialogRemove = document.getElementById('btn-bm-dialog-remove');
+
+    const clearDataDialog = document.getElementById('clear-data-dialog');
+    const clearRangeSelect = document.getElementById('clear-range-select');
+    const chkClearHistory = document.getElementById('chk-clear-history');
+    const chkClearDownloads = document.getElementById('chk-clear-downloads');
+    const chkClearCookies = document.getElementById('chk-clear-cookies');
+    const btnClearDialogCancel = document.getElementById('btn-clear-dialog-cancel');
+    const btnClearDialogClose = document.getElementById('btn-clear-dialog-close');
+    const btnClearDialogConfirm = document.getElementById('btn-clear-dialog-confirm');
+
     function sendIpc(msg) {
         if (window.ipc) {
             window.ipc.postMessage(JSON.stringify(msg));
@@ -130,7 +147,9 @@
                         (extensionsDropdown && extensionsDropdown.classList.contains('show')) ||
                         (omniboxDropdown && omniboxDropdown.classList.contains('show')) ||
                         (tabSearchDropdown && tabSearchDropdown.classList.contains('show')) ||
-                        (tabContextMenu && tabContextMenu.classList.contains('show'));
+                        (tabContextMenu && tabContextMenu.classList.contains('show')) ||
+                        (bookmarkEditDialog && bookmarkEditDialog.classList.contains('show')) ||
+                        (clearDataDialog && clearDataDialog.classList.contains('show'));
 
         if (moreMenuDropdown) moreMenuDropdown.classList.remove('show');
         if (profilePopup) profilePopup.classList.remove('show');
@@ -139,6 +158,8 @@
         if (omniboxDropdown) omniboxDropdown.classList.remove('show');
         if (tabSearchDropdown) tabSearchDropdown.classList.remove('show');
         if (tabContextMenu) tabContextMenu.classList.remove('show');
+        if (bookmarkEditDialog) bookmarkEditDialog.classList.remove('show');
+        if (clearDataDialog) clearDataDialog.classList.remove('show');
         if (backdrop) backdrop.classList.remove('show');
         state.selectedIndex = -1;
 
@@ -177,18 +198,32 @@
                 }
             }
 
+            let audioHtml = '';
+            if (tab.isAudible) {
+                const icon = tab.isMuted
+                    ? '<svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M6.717 3.55A.5.5 0 0 1 7 4v8a.5.5 0 0 1-.812.39L3.825 10.5H1.5A.5.5 0 0 1 1 10V6a.5.5 0 0 1 .5-.5h2.325l2.363-1.89a.5.5 0 0 1 .529-.06zm7.137 2.096a.5.5 0 0 1 0 .708L12.707 7.5l1.147 1.146a.5.5 0 0 1-.708.708L12 8.207l-1.146 1.147a.5.5 0 0 1-.708-.708L11.293 7.5l-1.147-1.146a.5.5 0 0 1 .708-.708L12 6.793l1.146-1.147a.5.5 0 0 1 .708 0z"/></svg>'
+                    : '<svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M11.536 14.01A8.473 8.473 0 0 0 14.026 8a8.47 8.47 0 0 0-2.49-6.01l-.708.707A7.476 7.476 0 0 1 13.025 8c0 2.071-.84 3.946-2.197 5.303l.708.707z"/><path d="M10.121 12.596A6.48 6.48 0 0 0 12.025 8a6.48 6.48 0 0 0-1.904-4.596l-.707.707A5.482 5.482 0 0 1 11.025 8a5.482 5.482 0 0 1-1.61 3.89l.706.706z"/><path d="M6.717 3.55A.5.5 0 0 1 7 4v8a.5.5 0 0 1-.812.39L3.825 10.5H1.5A.5.5 0 0 1 1 10V6a.5.5 0 0 1 .5-.5h2.325l2.363-1.89a.5.5 0 0 1 .529-.06z"/></svg>';
+                audioHtml = `<button class="tab-audio-btn ${tab.isMuted ? 'muted' : ''}" title="${tab.isMuted ? 'Unmute tab' : 'Mute tab'}">${icon}</button>`;
+            }
+
             if (tab.pinned) {
-                tabEl.innerHTML = `${faviconHtml}`;
+                tabEl.innerHTML = `${faviconHtml}${audioHtml}`;
             } else {
                 tabEl.innerHTML = `
                     ${faviconHtml}
                     <span class="tab-title" title="${escapeHtml(tab.title)}">${escapeHtml(tab.title)}</span>
+                    ${audioHtml}
                     <button class="tab-close-btn" title="Close Tab (Ctrl+W)" aria-label="Close tab">&times;</button>
                 `;
             }
 
             tabEl.addEventListener('click', (e) => {
-                if (e.target.classList.contains('tab-close-btn')) {
+                if (e.target.closest('.tab-audio-btn')) {
+                    e.stopPropagation();
+                    tab.isMuted = !tab.isMuted;
+                    renderTabs();
+                    sendIpc({ type: 'toggle_tab_mute', id: tab.id, muted: tab.isMuted });
+                } else if (e.target.classList.contains('tab-close-btn')) {
                     e.stopPropagation();
                     closeTab(tab.id);
                 } else {
@@ -469,16 +504,93 @@
         }
     }
 
-    btnStar.addEventListener('click', () => {
+    function openBookmarkDialog() {
         const active = state.tabs.find(t => t.id === state.activeTabId);
-        if (active) {
+        if (!active) return;
+        if (!state.isBookmarked) {
             sendIpc({
                 type: 'toggle_bookmark',
                 url: active.url,
                 title: active.title
             });
+            window.__nexora_set_bookmarked(true);
         }
-    });
+        closeOverlays();
+        if (bmDialogName) bmDialogName.value = active.title || active.url;
+        if (bmDialogFolder) bmDialogFolder.value = 'Bookmarks Bar';
+        if (bookmarkEditDialog) {
+            bookmarkEditDialog.classList.add('show');
+            expandOverlay(280);
+            setTimeout(() => {
+                if (bmDialogName) {
+                    bmDialogName.focus();
+                    bmDialogName.select();
+                }
+            }, 50);
+        }
+    }
+
+    btnStar.addEventListener('click', openBookmarkDialog);
+
+    if (btnBmDialogDone) {
+        btnBmDialogDone.addEventListener('click', () => {
+            const active = state.tabs.find(t => t.id === state.activeTabId);
+            if (active && bmDialogName && bmDialogFolder) {
+                sendIpc({
+                    type: 'update_bookmark_details',
+                    url: active.url,
+                    title: bmDialogName.value.trim() || active.title,
+                    folder: bmDialogFolder.value
+                });
+            }
+            closeOverlays();
+        });
+    }
+
+    if (btnBmDialogRemove) {
+        btnBmDialogRemove.addEventListener('click', () => {
+            const active = state.tabs.find(t => t.id === state.activeTabId);
+            if (active) {
+                sendIpc({
+                    type: 'delete_bookmark',
+                    url: active.url
+                });
+                window.__nexora_set_bookmarked(false);
+            }
+            closeOverlays();
+        });
+    }
+
+    if (btnBmDialogClose) {
+        btnBmDialogClose.addEventListener('click', closeOverlays);
+    }
+
+    function openClearDataDialog() {
+        closeOverlays();
+        if (clearDataDialog) {
+            clearDataDialog.classList.add('show');
+            expandOverlay(340);
+        }
+    }
+
+    if (btnClearDialogCancel) btnClearDialogCancel.addEventListener('click', closeOverlays);
+    if (btnClearDialogClose) btnClearDialogClose.addEventListener('click', closeOverlays);
+    if (btnClearDialogConfirm) {
+        btnClearDialogConfirm.addEventListener('click', () => {
+            const hours = parseInt(clearRangeSelect ? clearRangeSelect.value : '0', 10);
+            const clearHist = chkClearHistory ? chkClearHistory.checked : true;
+            const clearDl = chkClearDownloads ? chkClearDownloads.checked : true;
+            const clearCookies = chkClearCookies ? chkClearCookies.checked : true;
+            sendIpc({
+                type: 'clear_browsing_data',
+                hours: hours,
+                clear_history: clearHist,
+                clear_downloads: clearDl,
+                clear_cookies: clearCookies
+            });
+            closeOverlays();
+        });
+    }
 
     if (btnReader) {
         btnReader.addEventListener('click', () => {
@@ -728,12 +840,15 @@
         } else if (e.ctrlKey && e.shiftKey && (e.key === 'T' || e.key === 't')) {
             e.preventDefault();
             sendIpc({ type: 'reopen_closed_tab' });
+        } else if (e.ctrlKey && e.shiftKey && (e.key === 'b' || e.key === 'B')) {
+            e.preventDefault();
+            window.__nexora_toggle_bookmarks_bar_visibility();
+        } else if (e.ctrlKey && e.shiftKey && (e.key === 'Delete' || e.key === 'Del')) {
+            e.preventDefault();
+            openClearDataDialog();
         } else if (e.ctrlKey && (e.key === 'd' || e.key === 'D')) {
             e.preventDefault();
-            const active = state.tabs.find(t => t.id === state.activeTabId);
-            if (active) {
-                sendIpc({ type: 'toggle_bookmark', url: active.url, title: active.title });
-            }
+            openBookmarkDialog();
         } else if (e.ctrlKey && (e.key === '=' || e.key === '+')) {
             e.preventDefault();
             window.__nexora_zoom_in();
@@ -771,6 +886,27 @@
         } else if (e.key === 'F11') {
             e.preventDefault();
             sendIpc({ type: 'toggle_fullscreen' });
+        } else if (e.ctrlKey && e.key >= '1' && e.key <= '8') {
+            e.preventDefault();
+            const idx = parseInt(e.key, 10) - 1;
+            if (idx < state.tabs.length) {
+                switchTab(state.tabs[idx].id);
+            }
+        } else if (e.ctrlKey && e.key === '9') {
+            e.preventDefault();
+            if (state.tabs.length > 0) {
+                switchTab(state.tabs[state.tabs.length - 1].id);
+            }
+        } else if (e.ctrlKey && !e.shiftKey && e.key === 'Tab') {
+            e.preventDefault();
+            const currentIdx = state.tabs.findIndex(t => t.id === state.activeTabId);
+            const nextIdx = (currentIdx + 1) % state.tabs.length;
+            switchTab(state.tabs[nextIdx].id);
+        } else if (e.ctrlKey && e.shiftKey && e.key === 'Tab') {
+            e.preventDefault();
+            const currentIdx = state.tabs.findIndex(t => t.id === state.activeTabId);
+            const prevIdx = (currentIdx - 1 + state.tabs.length) % state.tabs.length;
+            switchTab(state.tabs[prevIdx].id);
         } else if (e.key === 'Escape') {
             closeOverlays();
         }
@@ -785,6 +921,71 @@
         omniboxInput.select();
     };
     window.__nexora_toggle_find_bar = toggleFindBar;
+    window.__nexora_open_clear_data_dialog = openClearDataDialog;
+    window.__nexora_open_bookmark_dialog = openBookmarkDialog;
+
+    window.__nexora_render_bookmarks_bar = function(items) {
+        if (!bookmarksBar) return;
+        bookmarksBar.innerHTML = '';
+        if (!Array.isArray(items) || items.length === 0) {
+            const empty = document.createElement('span');
+            empty.style.color = 'var(--text-muted)';
+            empty.style.fontSize = '11px';
+            empty.style.padding = '0 6px';
+            empty.textContent = 'For quick access, place your bookmarks here on the bookmarks bar.';
+            bookmarksBar.appendChild(empty);
+            return;
+        }
+        items.forEach(item => {
+            const bItem = document.createElement('div');
+            bItem.className = 'bookmark-bar-item';
+            bItem.title = `${item.title}\n${item.url}`;
+            const domain = getDomain(item.url);
+            const s2Url = domain ? `https://www.google.com/s2/favicons?domain=${domain}&sz=32` : '';
+            const iconSrc = s2Url || NEXORA_LOGO_DATA_URI;
+            bItem.innerHTML = `
+                <img src="${escapeHtml(iconSrc)}" class="bookmark-bar-icon" alt="" onerror="this.src='${NEXORA_LOGO_DATA_URI}';" />
+                <span class="bookmark-bar-title">${escapeHtml(item.title || item.url)}</span>
+            `;
+            bItem.addEventListener('click', (e) => {
+                e.stopPropagation();
+                navigateOmnibox(item.url);
+            });
+            bookmarksBar.appendChild(bItem);
+        });
+    };
+
+    window.__nexora_toggle_bookmarks_bar_visibility = function(show) {
+        if (!bookmarksBar) return;
+        if (typeof show === 'boolean') {
+            bookmarksBar.classList.toggle('hidden', !show);
+        } else {
+            bookmarksBar.classList.toggle('hidden');
+        }
+        const isVisible = !bookmarksBar.classList.contains('hidden');
+        const chromeEl = document.querySelector('.nexora-chrome');
+        if (chromeEl) {
+            chromeEl.classList.toggle('has-bookmarks-bar', isVisible);
+        }
+        sendIpc({
+            type: 'set_setting',
+            key: 'show_bookmarks_bar',
+            value: isVisible ? 'true' : 'false'
+        });
+        sendIpc({
+            type: 'bookmarks_bar_toggled',
+            visible: isVisible
+        });
+    };
+
+    window.__nexora_update_tab_audio = function(tabId, isAudible, isMuted) {
+        const tab = state.tabs.find(t => t.id === tabId);
+        if (tab) {
+            tab.isAudible = isAudible;
+            tab.isMuted = isMuted;
+            renderTabs();
+        }
+    };
 
     window.__nexora_zoom_in = function() {
         if (state.zoomLevel < 200) {
