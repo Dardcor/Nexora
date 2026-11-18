@@ -37,7 +37,12 @@
     const btnZoomReset = document.getElementById('btn-zoom-reset');
     const zoomBadgeText = document.getElementById('zoom-badge-text');
     const btnSiteInfo = document.getElementById('btn-site-info');
-    const btnShield = document.getElementById('btn-shield');
+    const btnExtensions = document.getElementById('btn-extensions');
+    const extensionsDropdown = document.getElementById('extensions-dropdown');
+    const extShieldItem = document.getElementById('ext-shield-item');
+    const extReaderItem = document.getElementById('ext-reader-item');
+    const btnManageExtensions = document.getElementById('btn-manage-extensions');
+    const shieldExtStatus = document.getElementById('shield-ext-status');
     const btnDownloads = document.getElementById('btn-downloads');
     const shieldCount = document.getElementById('shield-count');
     const btnProfile = document.getElementById('btn-profile');
@@ -122,6 +127,7 @@
         const wasOpen = (moreMenuDropdown && moreMenuDropdown.classList.contains('show')) ||
                         (profilePopup && profilePopup.classList.contains('show')) ||
                         (securityPopover && securityPopover.classList.contains('show')) ||
+                        (extensionsDropdown && extensionsDropdown.classList.contains('show')) ||
                         (omniboxDropdown && omniboxDropdown.classList.contains('show')) ||
                         (tabSearchDropdown && tabSearchDropdown.classList.contains('show')) ||
                         (tabContextMenu && tabContextMenu.classList.contains('show'));
@@ -129,6 +135,7 @@
         if (moreMenuDropdown) moreMenuDropdown.classList.remove('show');
         if (profilePopup) profilePopup.classList.remove('show');
         if (securityPopover) securityPopover.classList.remove('show');
+        if (extensionsDropdown) extensionsDropdown.classList.remove('show');
         if (omniboxDropdown) omniboxDropdown.classList.remove('show');
         if (tabSearchDropdown) tabSearchDropdown.classList.remove('show');
         if (tabContextMenu) tabContextMenu.classList.remove('show');
@@ -528,10 +535,40 @@
         });
     }
 
-    btnShield.addEventListener('click', (e) => {
-        e.stopPropagation();
-        openSecurityPopover(btnShield);
-    });
+    if (btnExtensions && extensionsDropdown) {
+        btnExtensions.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const isOpen = extensionsDropdown.classList.contains('show');
+            closeOverlays();
+            if (!isOpen) {
+                extensionsDropdown.classList.add('show');
+                expandOverlay(280);
+            }
+        });
+    }
+
+    if (extShieldItem) {
+        extShieldItem.addEventListener('click', (e) => {
+            e.stopPropagation();
+            openSecurityPopover(btnSiteInfo);
+        });
+    }
+
+    if (extReaderItem) {
+        extReaderItem.addEventListener('click', (e) => {
+            e.stopPropagation();
+            closeOverlays();
+            sendIpc({ type: 'toggle_reader' });
+        });
+    }
+
+    if (btnManageExtensions) {
+        btnManageExtensions.addEventListener('click', (e) => {
+            e.stopPropagation();
+            closeOverlays();
+            sendIpc({ type: 'navigate', url: 'nexora://settings' });
+        });
+    }
 
     if (btnDownloads) {
         btnDownloads.addEventListener('click', (e) => {
@@ -844,8 +881,9 @@
 
     window.__nexora_update_shield = function(count) {
         state.shieldCount = count;
-        shieldCount.textContent = count;
-        popoverShieldVal.textContent = `Active (${count} blocked)`;
+        if (shieldCount) shieldCount.textContent = count;
+        if (popoverShieldVal) popoverShieldVal.textContent = `Active (${count} blocked)`;
+        if (shieldExtStatus) shieldExtStatus.innerHTML = `Protection Active (<span id="shield-count">${count}</span> blocked)`;
     };
 
     window.__nexora_set_bookmarked = function(isBookmarked) {

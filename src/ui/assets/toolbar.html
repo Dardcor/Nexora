@@ -98,11 +98,10 @@
             </form>
 
             <div class="profile-actions">
-                <button class="shield-pill-btn" id="btn-shield" title="Nexora Shield Protection Active" aria-label="Shield status">
-                    <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-                        <path fill-rule="evenodd" d="m8.47 1.077 5.5 2.2a.75.75 0 0 1 .47.697v4.776c0 3.967-2.67 7.025-5.94 8.2a.75.75 0 0 1-.56 0C4.67 15.775 2 12.717 2 8.75V3.974a.75.75 0 0 1 .47-.697l5.5-2.2a.75.75 0 0 1 .56 0ZM3.5 4.542v4.208c0 3.256 2.127 5.86 4.5 6.942 2.373-1.082 4.5-3.686 4.5-6.942V4.542L8 2.742 3.5 4.542Z"/>
+                <button class="nav-circle-btn" id="btn-extensions" title="Extensions" aria-label="Extensions">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                        <path d="M20.5 11H19V7c0-1.1-.9-2-2-2h-4V3.5a2.5 2.5 0 0 0-5 0V5H4c-1.1 0-1.99.9-1.99 2v3.8H3.5c1.49 0 2.7 1.21 2.7 2.7s-1.21 2.7-2.7 2.7H2V20c0 1.1.9 2 2 2h3.8v-1.5c0-1.49 1.21-2.7 2.7-2.7s2.7 1.21 2.7 2.7V22H17c1.1 0 2-.9 2-2v-4h1.5a2.5 2.5 0 0 0 0-5z"/>
                     </svg>
-                    <span class="shield-badge-text" id="shield-count">0</span>
                 </button>
 
                 <button class="nav-circle-btn" id="btn-downloads" title="Downloads (Ctrl+J)" aria-label="Downloads">
@@ -264,6 +263,44 @@
         <div class="menu-divider"></div>
         <div class="menu-item" id="menu-exit">
             <span>Exit</span>
+        </div>
+    </div>
+
+    <div class="extensions-dropdown" id="extensions-dropdown">
+        <div class="extensions-header">
+            <span class="extensions-title">Extensions</span>
+        </div>
+        <div class="extensions-list">
+            <div class="extension-item" id="ext-shield-item">
+                <div class="extension-icon-box">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="#23a55a" aria-hidden="true">
+                        <path fill-rule="evenodd" d="m8.47 1.077 5.5 2.2a.75.75 0 0 1 .47.697v4.776c0 3.967-2.67 7.025-5.94 8.2a.75.75 0 0 1-.56 0C4.67 15.775 2 12.717 2 8.75V3.974a.75.75 0 0 1 .47-.697l5.5-2.2a.75.75 0 0 1 .56 0ZM3.5 4.542v4.208c0 3.256 2.127 5.86 4.5 6.942 2.373-1.082 4.5-3.686 4.5-6.942V4.542L8 2.742 3.5 4.542Z"/>
+                    </svg>
+                </div>
+                <div class="extension-info">
+                    <div class="extension-name">Nexora Shield</div>
+                    <div class="extension-desc" id="shield-ext-status">Protection Active (<span id="shield-count">0</span> blocked)</div>
+                </div>
+            </div>
+            <div class="extension-item" id="ext-reader-item">
+                <div class="extension-icon-box">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="#5865f2" aria-hidden="true">
+                        <path d="M1 2.828c.885-.37 2.154-.769 3.388-.893 1.33-.134 2.458.063 3.112.752v9.746c-.935-.53-2.12-.603-3.213-.493-1.18.12-2.37.461-3.287.811V2.828zm7.5-.141c.654-.689 1.782-.886 3.112-.752 1.234.124 2.503.523 3.388.893v9.923c-.918-.35-2.107-.692-3.287-.81-1.094-.111-2.278-.039-3.213.492V2.687zM8 1.783C7.015.936 5.587.81 4.287.94c-1.514.153-3.042.672-3.994 1.105A.5.5 0 0 0 0 2.5v11a.5.5 0 0 0 .707.455c.882-.4 2.303-.881 3.68-1.02 1.409-.142 2.59.087 3.223.877a.5.5 0 0 0 .78 0c.633-.79 1.814-1.019 3.222-.877 1.378.139 2.8.62 3.681 1.02A.5.5 0 0 0 16 13.5v-11a.5.5 0 0 0-.293-.455c-.952-.433-2.48-.952-3.994-1.105C10.413.809 8.985.936 8 1.783z"/>
+                    </svg>
+                </div>
+                <div class="extension-info">
+                    <div class="extension-name">Nano Reader</div>
+                    <div class="extension-desc">Distraction-free article reader</div>
+                </div>
+            </div>
+        </div>
+        <div class="menu-divider"></div>
+        <div class="extensions-footer" id="btn-manage-extensions">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                <path d="M8 4.754a3.246 3.246 0 1 0 0 6.492 3.246 3.246 0 0 0 0-6.492zM5.754 8a2.246 2.246 0 1 1 4.492 0 2.246 2.246 0 0 1-4.492 0z"/>
+                <path d="M9.796 1.343c-.527-1.79-3.065-1.79-3.592 0l-.094.319a.873.873 0 0 1-1.255.52l-.292-.16c-1.64-.892-3.433.902-2.54 2.541l.159.292a.873.873 0 0 1-.52 1.255l-.319.094c-1.79.527-1.79 3.065 0 3.592l.319.094a.873.873 0 0 1 .52 1.255l-.16.292c-.892 1.64.901 3.434 2.541 2.54l.292-.159a.873.873 0 0 1 1.255.52l.094.319c.527 1.79 3.065 1.79 3.592 0l.094-.319a.873.873 0 0 1 1.255-.52l.292.16c1.64.893 3.434-.902 2.54-2.541l-.159-.292a.873.873 0 0 1 .52-1.255l.319-.094c1.79-.527 1.79-3.065 0-3.592l-.319-.094a.873.873 0 0 1-.52-1.255l.16-.292c.893-1.64-.902-3.433-2.541-2.54l-.292.159a.873.873 0 0 1-1.255-.52l-.094-.319z"/>
+            </svg>
+            <span>Manage extensions</span>
         </div>
     </div>
 
