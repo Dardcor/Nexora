@@ -41,8 +41,6 @@ extern "system" {
     fn LoadLibraryA(lpfilename: *const u8) -> isize;
     fn GetProcAddress(hmodule: isize, lpprocname: *const u8) -> usize;
     fn SetCurrentProcessExplicitAppUserModelID(app_id: *const u16) -> i32;
-    fn GetWindowLongPtrW(hwnd: isize, nindex: i32) -> isize;
-    fn SetWindowLongPtrW(hwnd: isize, nindex: i32, dwnewlong: isize) -> isize;
 }
 
 #[cfg(target_os = "windows")]
@@ -55,12 +53,6 @@ const SWP_NOSIZE: u32 = 0x0001;
 const SWP_NOMOVE: u32 = 0x0002;
 #[cfg(target_os = "windows")]
 const SWP_NOACTIVATE: u32 = 0x0010;
-#[cfg(target_os = "windows")]
-const GWL_STYLE: i32 = -16;
-#[cfg(target_os = "windows")]
-const WS_CLIPCHILDREN: isize = 0x02000000;
-#[cfg(target_os = "windows")]
-const WS_CLIPSIBLINGS: isize = 0x04000000;
 
 #[cfg(target_os = "windows")]
 fn enable_windows_dark_mode() {
@@ -239,8 +231,6 @@ use wry::{
     dpi::{PhysicalPosition, PhysicalSize},
     Rect, WebViewBuilder,
 };
-#[cfg(target_os = "windows")]
-use wry::{ScrollBarStyle, WebViewBuilderExtWindows};
 
 use nexora::app::NexoraApp;
 use nexora::engine::NanoReader;
@@ -409,13 +399,6 @@ fn create_tab_webview(
             });
         });
 
-    #[cfg(target_os = "windows")]
-    {
-        builder = builder
-            .with_additional_browser_args("--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection,OverscrollHistoryNavigation,TouchpadOverscrollHistoryNavigation,PullToRefresh --disable-overscroll-edge-effect --disable-pull-to-refresh-effect --enable-smooth-scrolling")
-            .with_scroll_bar_style(ScrollBarStyle::FluentOverlay);
-    }
-
     if initial_url.starts_with("nexora://") || initial_url.is_empty() {
         match initial_url {
             "nexora://history" => {
@@ -484,13 +467,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_min_inner_size(tao::dpi::LogicalSize::new(600.0, 400.0));
 
     let window = builder.build(&event_loop)?;
-
-    #[cfg(target_os = "windows")]
-    unsafe {
-        let hwnd = window.hwnd() as isize;
-        let style = GetWindowLongPtrW(hwnd, GWL_STYLE);
-        SetWindowLongPtrW(hwnd, GWL_STYLE, style | WS_CLIPCHILDREN | WS_CLIPSIBLINGS);
-    }
 
     let scale_factor = window.scale_factor();
     let initial_physical = window.inner_size();
@@ -645,14 +621,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .build_as_child(&window)?;
 
     #[cfg(target_os = "windows")]
-    let toolbar_hwnd = unsafe {
-        let thwnd = GetWindow(window.hwnd() as isize, GW_CHILD);
-        if thwnd != 0 {
-            let tstyle = GetWindowLongPtrW(thwnd, GWL_STYLE);
-            SetWindowLongPtrW(thwnd, GWL_STYLE, tstyle | WS_CLIPSIBLINGS);
-        }
-        thwnd
-    };
+    let toolbar_hwnd = unsafe { GetWindow(window.hwnd() as isize, GW_CHILD) };
 
     let bring_toolbar_to_top = move || {
         #[cfg(target_os = "windows")]
@@ -756,6 +725,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 let update_script = format!("if (window.__nexora_update_url) window.__nexora_update_url({:?});", url);
                                 let _ = toolbar_webview.evaluate_script(&update_script);
                             } else if let Some(cleaned) = app.security.inspect_and_filter_url(&url) {
+                                let update_script = format!("if (window.__nexora_update_url) window.__nexora_update_url({:?});", cleaned);
+                                let _ = toolbar_webview.evaluate_script(&update_script);
+                                let _ = toolbar_webview.evaluate_script("if (window.__nexora_page_loading) window.__nexora_page_loading(true);");
                                 let _ = active_wv.load_url(&cleaned);
                                 let _ = app.db.record_visit(&cleaned, &url, "default");
                             }
