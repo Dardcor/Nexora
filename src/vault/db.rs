@@ -196,7 +196,7 @@ impl NexoraDatabase {
         let defaults = [
             ("search_engine", "google"),
             ("shield_enabled", "true"),
-            ("show_bookmarks_bar", "true"),
+            ("show_bookmarks_bar", "false"),
             ("https_only", "true"),
             ("default_zoom", "100"),
         ];
@@ -208,26 +208,8 @@ impl NexoraDatabase {
             )?;
         }
 
-        let count: i64 = conn.query_row("SELECT COUNT(*) FROM bookmarks", [], |r| r.get(0))?;
-        if count == 0 {
-            let initial_bookmarks = [
-                ("GitHub", "https://github.com/Dardcor/Nexora", "Bookmarks Bar"),
-                ("Google", "https://www.google.com", "Bookmarks Bar"),
-                ("Rust Lang", "https://www.rust-lang.org", "Bookmarks Bar"),
-                ("Hacker News", "https://news.ycombinator.com", "Bookmarks Bar"),
-                ("Wikipedia", "https://www.wikipedia.org", "Bookmarks Bar"),
-            ];
-
-            let now = Utc::now().timestamp_millis();
-            for (title, url, folder) in initial_bookmarks {
-                let id = Uuid::new_v4().to_string();
-                let _ = conn.execute(
-                    "INSERT INTO bookmarks (id, url, title, folder, created_at, favicon) VALUES (?1, ?2, ?3, ?4, ?5, NULL)",
-                    params![id, url, title, folder, now],
-                );
-            }
-        }
-
+        let _ = conn.execute("DELETE FROM bookmarks WHERE url IN ('https://github.com/Dardcor/Nexora', 'https://www.rust-lang.org', 'https://news.ycombinator.com', 'https://www.wikipedia.org')", []);
+        let _ = conn.execute("UPDATE settings SET value = 'false' WHERE key = 'show_bookmarks_bar'", []);
         let _ = conn.execute("DELETE FROM profiles WHERE id IN ('prof-acip', 'prof-afdaniko', 'prof-akehu', 'prof-ardi', 'prof-berlaut', 'prof-de')", []);
         let _ = conn.execute("UPDATE profiles SET name = 'Person 1', email = '', badge = '' WHERE email = 'dardcorxyz@gmail.com'", []);
 

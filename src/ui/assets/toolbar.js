@@ -73,6 +73,7 @@
     const pageLoadingBar = document.getElementById('page-loading-bar');
     const findBar = document.getElementById('find-bar');
     const findInput = document.getElementById('find-input');
+    const findCount = document.getElementById('find-count');
     const findPrev = document.getElementById('find-prev');
     const findNext = document.getElementById('find-next');
     const findClose = document.getElementById('find-close');
@@ -415,6 +416,7 @@
         const isShown = findBar.classList.contains('show');
         if (isShown) {
             findBar.classList.remove('show');
+            if (findCount) findCount.textContent = '';
             sendIpc({ type: 'stop_find' });
         } else {
             findBar.classList.add('show');
@@ -433,6 +435,14 @@
                 }
             } else if (e.key === 'Escape') {
                 toggleFindBar();
+            }
+        });
+        findInput.addEventListener('input', () => {
+            const q = findInput.value.trim();
+            if (q) {
+                sendIpc({ type: 'find_in_page', query: q, forward: true });
+            } else if (findCount) {
+                findCount.textContent = '';
             }
         });
     }
@@ -921,6 +931,11 @@
         omniboxInput.select();
     };
     window.__nexora_toggle_find_bar = toggleFindBar;
+    window.__nexora_update_find_count = function(text) {
+        if (findCount) {
+            findCount.textContent = text || '';
+        }
+    };
     window.__nexora_open_clear_data_dialog = openClearDataDialog;
     window.__nexora_open_bookmark_dialog = openBookmarkDialog;
 

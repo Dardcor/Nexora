@@ -995,6 +995,14 @@ button {
     width: 160px;
 }
 
+.find-count {
+    font-size: 11px;
+    color: var(--text-muted);
+    min-width: 36px;
+    text-align: center;
+    user-select: none;
+}
+
 .find-btn {
     width: 22px;
     height: 22px;

@@ -8,6 +8,21 @@ impl AntiFingerprint {
             if (window.__nexora_shield_active__) return;
             window.__nexora_shield_active__ = true;
 
+            try {
+                const lockStyle = document.createElement('style');
+                lockStyle.id = '__nexora_viewport_lock__';
+                lockStyle.textContent = 'html, body { overscroll-behavior: none !important; overscroll-behavior-y: none !important; overscroll-behavior-x: none !important; } html { scrollbar-gutter: stable; }';
+                if (document.head) {
+                    document.head.appendChild(lockStyle);
+                } else {
+                    document.addEventListener('DOMContentLoaded', function() {
+                        if (document.head && !document.getElementById('__nexora_viewport_lock__')) {
+                            document.head.appendChild(lockStyle);
+                        }
+                    });
+                }
+            } catch(e) {}
+
             if (window.AudioBuffer && AudioBuffer.prototype.copyFromChannel) {
                 const origCopy = AudioBuffer.prototype.copyFromChannel;
                 AudioBuffer.prototype.copyFromChannel = function(dest, channelNumber, startInChannel) {

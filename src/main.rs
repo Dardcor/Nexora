@@ -41,6 +41,8 @@ extern "system" {
     fn LoadLibraryA(lpfilename: *const u8) -> isize;
     fn GetProcAddress(hmodule: isize, lpprocname: *const u8) -> usize;
     fn SetCurrentProcessExplicitAppUserModelID(app_id: *const u16) -> i32;
+    fn GetWindowLongPtrW(hwnd: isize, nindex: i32) -> isize;
+    fn SetWindowLongPtrW(hwnd: isize, nindex: i32, dwnewlong: isize) -> isize;
 }
 
 #[cfg(target_os = "windows")]
@@ -53,6 +55,12 @@ const SWP_NOSIZE: u32 = 0x0001;
 const SWP_NOMOVE: u32 = 0x0002;
 #[cfg(target_os = "windows")]
 const SWP_NOACTIVATE: u32 = 0x0010;
+#[cfg(target_os = "windows")]
+const GWL_STYLE: i32 = -16;
+#[cfg(target_os = "windows")]
+const WS_CLIPCHILDREN: isize = 0x02000000;
+#[cfg(target_os = "windows")]
+const WS_CLIPSIBLINGS: isize = 0x04000000;
 
 #[cfg(target_os = "windows")]
 fn enable_windows_dark_mode() {
@@ -231,6 +239,8 @@ use wry::{
     dpi::{PhysicalPosition, PhysicalSize},
     Rect, WebViewBuilder,
 };
+#[cfg(target_os = "windows")]
+use wry::{ScrollBarStyle, WebViewBuilderExtWindows};
 
 use nexora::app::NexoraApp;
 use nexora::engine::NanoReader;
@@ -399,6 +409,13 @@ fn create_tab_webview(
             });
         });
 
+    #[cfg(target_os = "windows")]
+    {
+        builder = builder
+            .with_additional_browser_args("--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection,OverscrollHistoryNavigation,TouchpadOverscrollHistoryNavigation,PullToRefresh --disable-overscroll-edge-effect --disable-pull-to-refresh-effect --enable-smooth-scrolling")
+            .with_scroll_bar_style(ScrollBarStyle::FluentOverlay);
+    }
+
     if initial_url.starts_with("nexora://") || initial_url.is_empty() {
         match initial_url {
             "nexora://history" => {
@@ -468,12 +485,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let window = builder.build(&event_loop)?;
 
+    #[cfg(target_os = "windows")]
+    unsafe {
+        let hwnd = window.hwnd() as isize;
+        let style = GetWindowLongPtrW(hwnd, GWL_STYLE);
+        SetWindowLongPtrW(hwnd, GWL_STYLE, style | WS_CLIPCHILDREN | WS_CLIPSIBLINGS);
+    }
+
     let scale_factor = window.scale_factor();
     let initial_physical = window.inner_size();
     let initial_width = initial_physical.width;
     let initial_height = initial_physical.height;
 
-    let show_bm_bar_setting = app.db.get_setting("show_bookmarks_bar", "true") == "true";
+    let show_bm_bar_setting = app.db.get_setting("show_bookmarks_bar", "false") == "true";
     let initial_logical_h = if show_bm_bar_setting { TOOLBAR_LOGICAL_HEIGHT + 28.0 } else { TOOLBAR_LOGICAL_HEIGHT };
     let initial_toolbar_h = (initial_logical_h * scale_factor) as u32;
     let initial_content_h = initial_height.saturating_sub(initial_toolbar_h);
@@ -621,7 +645,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .build_as_child(&window)?;
 
     #[cfg(target_os = "windows")]
-    let toolbar_hwnd = unsafe { GetWindow(window.hwnd() as isize, GW_CHILD) };
+    let toolbar_hwnd = unsafe {
+        let thwnd = GetWindow(window.hwnd() as isize, GW_CHILD);
+        if thwnd != 0 {
+            let tstyle = GetWindowLongPtrW(thwnd, GWL_STYLE);
+            SetWindowLongPtrW(thwnd, GWL_STYLE, tstyle | WS_CLIPSIBLINGS);
+        }
+        thwnd
+    };
 
     let bring_toolbar_to_top = move || {
         #[cfg(target_os = "windows")]
@@ -1113,7 +1144,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                         map.insert("search_engine".into(), Value::String(app.db.get_setting("search_engine", "google")));
                                         map.insert("shield_enabled".into(), Value::String(app.db.get_setting("shield_enabled", "true")));
                                         map.insert("https_only".into(), Value::String(app.db.get_setting("https_only", "true")));
-                                        map.insert("show_bookmarks_bar".into(), Value::String(app.db.get_setting("show_bookmarks_bar", "true")));
+                                        map.insert("show_bookmarks_bar".into(), Value::String(app.db.get_setting("show_bookmarks_bar", "false")));
                                         let json = serde_json::to_string(&Value::Object(map)).unwrap_or_default();
                                         if let Some(wv) = tab_webviews.get(&tab_id) {
                                             let script = format!("if (window.__nexora_render_settings) window.__nexora_render_settings({});", json);
