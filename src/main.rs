@@ -276,6 +276,7 @@ pub enum BrowserAction {
     GetProfiles,
     SwitchProfile(String),
     AddProfile { name: String, email: String, badge: String, color: String },
+    CustomizeProfile(String),
     SignOut,
     BookmarksBarToggled(bool),
 }
@@ -609,6 +610,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             let badge = v.get("badge").and_then(|b| b.as_str()).unwrap_or("").to_string();
                             let color = v.get("color").and_then(|c| c.as_str()).unwrap_or("#4285f4").to_string();
                             let _ = proxy_toolbar.send_event(BrowserAction::AddProfile { name, email, badge, color });
+                        }
+                        "customize_profile" => {
+                            if let Some(name) = v.get("name").and_then(|n| n.as_str()) {
+                                let _ = proxy_toolbar.send_event(BrowserAction::CustomizeProfile(name.to_string()));
+                            }
                         }
                         "sign_out" => {
                             let _ = proxy_toolbar.send_event(BrowserAction::SignOut);
@@ -1480,6 +1486,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                     BrowserAction::SwitchProfile(id) => {
                         let _ = app.db.switch_profile(&id);
+                        let _ = proxy.send_event(BrowserAction::Navigate("nexora://home".into()));
                         if let Ok(profiles) = app.db.get_profiles() {
                             if let Ok(json_str) = serde_json::to_string(&profiles) {
                                 let script = format!("if (window.__nexora_update_profiles) window.__nexora_update_profiles({});", json_str);
@@ -1488,11 +1495,25 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
                     }
                     BrowserAction::AddProfile { name, email, badge, color } => {
-                        let _ = app.db.add_profile(&name, &email, &badge, &color);
+                        if let Ok(new_prof) = app.db.add_profile(&name, &email, &badge, &color) {
+                            let _ = app.db.switch_profile(&new_prof.id);
+                            let _ = proxy.send_event(BrowserAction::Navigate("nexora://home".into()));
+                        }
                         if let Ok(profiles) = app.db.get_profiles() {
                             if let Ok(json_str) = serde_json::to_string(&profiles) {
                                 let script = format!("if (window.__nexora_update_profiles) window.__nexora_update_profiles({});", json_str);
                                 let _ = toolbar_webview.evaluate_script(&script);
+                            }
+                        }
+                    }
+                    BrowserAction::CustomizeProfile(name) => {
+                        if let Ok(Some(active_prof)) = app.db.get_active_profile() {
+                            let _ = app.db.update_profile(&active_prof.id, &name, &active_prof.email, &active_prof.badge, &active_prof.color);
+                            if let Ok(profiles) = app.db.get_profiles() {
+                                if let Ok(json_str) = serde_json::to_string(&profiles) {
+                                    let script = format!("if (window.__nexora_update_profiles) window.__nexora_update_profiles({});", json_str);
+                                    let _ = toolbar_webview.evaluate_script(&script);
+                                }
                             }
                         }
                     }

@@ -716,7 +716,7 @@
         closeOverlays();
         if (!isOpen) {
             profilePopup.classList.add('show');
-            expandOverlay(420);
+            expandOverlay(620);
         }
     });
 
@@ -724,6 +724,14 @@
         profBtnSignin.addEventListener('click', () => {
             closeOverlays();
             sendIpc({ type: 'navigate', url: 'https://accounts.google.com/signin' });
+        });
+    }
+
+    const profBtnAddAccount = document.getElementById('prof-btn-add-account');
+    if (profBtnAddAccount) {
+        profBtnAddAccount.addEventListener('click', () => {
+            closeOverlays();
+            sendIpc({ type: 'navigate', url: 'https://accounts.google.com/AddSession' });
         });
     }
 
@@ -743,11 +751,8 @@
         const newName = prompt('Enter profile name:', currentName);
         if (newName && newName.trim()) {
             sendIpc({
-                type: 'add_profile',
-                name: newName.trim(),
-                email: state.activeProfile ? state.activeProfile.email : '',
-                badge: state.activeProfile ? state.activeProfile.badge : '',
-                color: state.activeProfile ? state.activeProfile.color : '#5865f2'
+                type: 'customize_profile',
+                name: newName.trim()
             });
         }
     });
@@ -760,18 +765,30 @@
     profBtnSignout.addEventListener('click', () => {
         closeOverlays();
         sendIpc({ type: 'sign_out' });
+        sendIpc({ type: 'navigate', url: 'https://accounts.google.com/Logout' });
     });
+
+    const profBtnGuest = document.getElementById('prof-btn-guest');
+    if (profBtnGuest) {
+        profBtnGuest.addEventListener('click', () => {
+            closeOverlays();
+            sendIpc({ type: 'new_incognito' });
+        });
+    }
 
     profBtnAdd.addEventListener('click', () => {
         closeOverlays();
-        const name = prompt('Enter name for the new Nexora profile:');
+        const nextNum = (state.profiles && state.profiles.length) ? state.profiles.length + 1 : 2;
+        const name = prompt('Enter name for the new profile:', `Person ${nextNum}`);
         if (name && name.trim()) {
+            const colors = ['#4285f4', '#34a853', '#ea4335', '#fbbc05', '#9c27b0', '#009688', '#ff5722'];
+            const randomColor = colors[Math.floor(Math.random() * colors.length)];
             sendIpc({
                 type: 'add_profile',
                 name: name.trim(),
                 email: '',
                 badge: '',
-                color: '#4285f4'
+                color: randomColor
             });
         }
     });
@@ -1207,6 +1224,11 @@
             profBtnGoogle.style.display = hasEmail ? 'flex' : 'none';
         }
 
+        const profBtnAddAccount = document.getElementById('prof-btn-add-account');
+        if (profBtnAddAccount) {
+            profBtnAddAccount.style.display = hasEmail ? 'flex' : 'none';
+        }
+
         if (profBtnSignout) {
             profBtnSignout.style.display = hasEmail ? 'flex' : 'none';
         }
@@ -1227,7 +1249,10 @@
                     <div class="profile-circle-mini" style="background: ${color};">
                         <span>${initial}</span>
                     </div>
-                    <span class="profile-item-name">${escapeHtml(p.name)}</span>
+                    <div style="display: flex; flex-direction: column; min-width: 0; flex: 1;">
+                        <span class="profile-item-name">${escapeHtml(p.name)}</span>
+                        ${p.email ? `<span style="font-size: 11px; color: #9aa0a6; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(p.email)}</span>` : ''}
+                    </div>
                 `;
                 row.addEventListener('click', () => {
                     closeOverlays();

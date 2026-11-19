@@ -491,6 +491,9 @@ button {
     top: 70px;
     right: 36px;
     width: 320px;
+    max-height: 520px;
+    overflow-y: auto;
+    overflow-x: hidden;
     background-color: #1f1f1f;
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 18px;
@@ -499,6 +502,17 @@ button {
     z-index: 9999;
     user-select: none;
     animation: popupFadeIn 0.15s ease-out;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+}
+
+.profile-popup::-webkit-scrollbar {
+    width: 6px;
+}
+
+.profile-popup::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 3px;
 }
 
 .profile-popup.show {
