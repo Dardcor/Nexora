@@ -417,6 +417,41 @@
         </div>
     </div>
 
+    <div class="profile-modal-dialog" id="profile-modal-dialog">
+        <div class="dialog-header">
+            <span class="dialog-title" id="prof-modal-title">Add profile</span>
+            <button class="dialog-close" id="btn-prof-modal-close" aria-label="Close dialog">&times;</button>
+        </div>
+        <div class="dialog-body">
+            <div class="prof-modal-avatar-preview">
+                <div class="prof-modal-avatar" id="prof-modal-avatar">
+                    <span id="prof-modal-avatar-initial">P</span>
+                </div>
+            </div>
+            <div class="dialog-field">
+                <label class="dialog-label" for="prof-modal-name">Profile name</label>
+                <input type="text" class="dialog-input" id="prof-modal-name" placeholder="e.g. Work, Personal" autocomplete="off" spellcheck="false">
+            </div>
+            <div class="dialog-field">
+                <label class="dialog-label">Choose a theme color</label>
+                <div class="palette-swatches" id="prof-modal-palette">
+                    <button type="button" class="palette-swatch active" data-color="#4285f4" style="--swatch-color: #4285f4;"></button>
+                    <button type="button" class="palette-swatch" data-color="#34a853" style="--swatch-color: #34a853;"></button>
+                    <button type="button" class="palette-swatch" data-color="#ea4335" style="--swatch-color: #ea4335;"></button>
+                    <button type="button" class="palette-swatch" data-color="#fbbc05" style="--swatch-color: #fbbc05;"></button>
+                    <button type="button" class="palette-swatch" data-color="#9c27b0" style="--swatch-color: #9c27b0;"></button>
+                    <button type="button" class="palette-swatch" data-color="#009688" style="--swatch-color: #009688;"></button>
+                    <button type="button" class="palette-swatch" data-color="#ff5722" style="--swatch-color: #ff5722;"></button>
+                    <button type="button" class="palette-swatch" data-color="#607d8b" style="--swatch-color: #607d8b;"></button>
+                </div>
+            </div>
+        </div>
+        <div class="dialog-footer">
+            <button class="dialog-btn-secondary" id="btn-prof-modal-cancel">Cancel</button>
+            <button class="dialog-btn-primary" id="btn-prof-modal-save">Done</button>
+        </div>
+    </div>
+
     <script src="toolbar.js"></script>
 </body>
 </html>

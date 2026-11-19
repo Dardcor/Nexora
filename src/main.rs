@@ -276,7 +276,7 @@ pub enum BrowserAction {
     GetProfiles,
     SwitchProfile(String),
     AddProfile { name: String, email: String, badge: String, color: String },
-    CustomizeProfile(String),
+    CustomizeProfile { name: String, color: String },
     SignOut,
     BookmarksBarToggled(bool),
 }
@@ -613,7 +613,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
                         "customize_profile" => {
                             if let Some(name) = v.get("name").and_then(|n| n.as_str()) {
-                                let _ = proxy_toolbar.send_event(BrowserAction::CustomizeProfile(name.to_string()));
+                                let color = v.get("color").and_then(|c| c.as_str()).unwrap_or("").to_string();
+                                let _ = proxy_toolbar.send_event(BrowserAction::CustomizeProfile { name: name.to_string(), color });
                             }
                         }
                         "sign_out" => {
@@ -1506,9 +1507,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             }
                         }
                     }
-                    BrowserAction::CustomizeProfile(name) => {
+                    BrowserAction::CustomizeProfile { name, color } => {
                         if let Ok(Some(active_prof)) = app.db.get_active_profile() {
-                            let _ = app.db.update_profile(&active_prof.id, &name, &active_prof.email, &active_prof.badge, &active_prof.color);
+                            let target_color = if color.is_empty() { active_prof.color } else { color };
+                            let _ = app.db.update_profile(&active_prof.id, &name, &active_prof.email, &active_prof.badge, &target_color);
                             if let Ok(profiles) = app.db.get_profiles() {
                                 if let Ok(json_str) = serde_json::to_string(&profiles) {
                                     let script = format!("if (window.__nexora_update_profiles) window.__nexora_update_profiles({});", json_str);

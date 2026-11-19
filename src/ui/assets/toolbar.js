@@ -113,6 +113,16 @@
     const btnClearDialogClose = document.getElementById('btn-clear-dialog-close');
     const btnClearDialogConfirm = document.getElementById('btn-clear-dialog-confirm');
 
+    const profileModalDialog = document.getElementById('profile-modal-dialog');
+    const profModalTitle = document.getElementById('prof-modal-title');
+    const btnProfModalClose = document.getElementById('btn-prof-modal-close');
+    const profModalAvatar = document.getElementById('prof-modal-avatar');
+    const profModalAvatarInitial = document.getElementById('prof-modal-avatar-initial');
+    const profModalName = document.getElementById('prof-modal-name');
+    const profModalPalette = document.getElementById('prof-modal-palette');
+    const btnProfModalCancel = document.getElementById('btn-prof-modal-cancel');
+    const btnProfModalSave = document.getElementById('btn-prof-modal-save');
+
     function sendIpc(msg) {
         if (window.ipc) {
             window.ipc.postMessage(JSON.stringify(msg));
@@ -150,7 +160,8 @@
                         (tabSearchDropdown && tabSearchDropdown.classList.contains('show')) ||
                         (tabContextMenu && tabContextMenu.classList.contains('show')) ||
                         (bookmarkEditDialog && bookmarkEditDialog.classList.contains('show')) ||
-                        (clearDataDialog && clearDataDialog.classList.contains('show'));
+                        (clearDataDialog && clearDataDialog.classList.contains('show')) ||
+                        (profileModalDialog && profileModalDialog.classList.contains('show'));
 
         if (moreMenuDropdown) moreMenuDropdown.classList.remove('show');
         if (profilePopup) profilePopup.classList.remove('show');
@@ -161,6 +172,7 @@
         if (tabContextMenu) tabContextMenu.classList.remove('show');
         if (bookmarkEditDialog) bookmarkEditDialog.classList.remove('show');
         if (clearDataDialog) clearDataDialog.classList.remove('show');
+        if (profileModalDialog) profileModalDialog.classList.remove('show');
         if (backdrop) backdrop.classList.remove('show');
         state.selectedIndex = -1;
 
@@ -745,17 +757,133 @@
         createNewTab('https://myaccount.google.com', 'Google Account');
     });
 
-    profBtnCustomize.addEventListener('click', () => {
-        closeOverlays();
-        const currentName = state.activeProfile ? state.activeProfile.name : 'Person 1';
-        const newName = prompt('Enter profile name:', currentName);
-        if (newName && newName.trim()) {
-            sendIpc({
-                type: 'customize_profile',
-                name: newName.trim()
+    let profileModalMode = 'add';
+    let profileModalColor = '#4285f4';
+
+    function updateProfileModalPreview() {
+        const val = profModalName ? profModalName.value.trim() : '';
+        const initial = val ? val.charAt(0).toUpperCase() : 'P';
+        if (profModalAvatarInitial) {
+            profModalAvatarInitial.textContent = initial;
+        }
+        if (profModalAvatar) {
+            profModalAvatar.style.backgroundColor = profileModalColor;
+        }
+    }
+
+    function selectModalColor(color) {
+        profileModalColor = color || '#4285f4';
+        if (profModalPalette) {
+            const swatches = profModalPalette.querySelectorAll('.palette-swatch');
+            swatches.forEach(swatch => {
+                if (swatch.getAttribute('data-color') === profileModalColor) {
+                    swatch.classList.add('active');
+                } else {
+                    swatch.classList.remove('active');
+                }
             });
         }
-    });
+        updateProfileModalPreview();
+    }
+
+    function openProfileModal(mode) {
+        profileModalMode = mode;
+        closeOverlays();
+
+        const isCustomize = mode === 'customize';
+        if (profModalTitle) {
+            profModalTitle.textContent = isCustomize ? 'Customize profile' : 'Add profile';
+        }
+
+        const initialName = isCustomize
+            ? (state.activeProfile ? state.activeProfile.name : 'Person 1')
+            : `Person ${(state.profiles && state.profiles.length) ? state.profiles.length + 1 : 2}`;
+
+        const initialColor = (isCustomize && state.activeProfile && state.activeProfile.color)
+            ? state.activeProfile.color
+            : '#4285f4';
+
+        if (profModalName) {
+            profModalName.value = initialName;
+        }
+
+        selectModalColor(initialColor);
+
+        if (profileModalDialog) {
+            profileModalDialog.classList.add('show');
+            if (backdrop) backdrop.classList.add('show');
+            expandOverlay(380);
+            setTimeout(() => {
+                if (profModalName) {
+                    profModalName.focus();
+                    profModalName.select();
+                }
+            }, 50);
+        }
+    }
+
+    function saveProfileModal() {
+        const name = profModalName ? profModalName.value.trim() : '';
+        if (name) {
+            if (profileModalMode === 'customize') {
+                sendIpc({
+                    type: 'customize_profile',
+                    name: name,
+                    color: profileModalColor
+                });
+            } else {
+                sendIpc({
+                    type: 'add_profile',
+                    name: name,
+                    email: '',
+                    badge: '',
+                    color: profileModalColor
+                });
+            }
+        }
+        closeOverlays();
+    }
+
+    if (profBtnCustomize) {
+        profBtnCustomize.addEventListener('click', (e) => {
+            e.stopPropagation();
+            openProfileModal('customize');
+        });
+    }
+
+    if (profBtnAdd) {
+        profBtnAdd.addEventListener('click', (e) => {
+            e.stopPropagation();
+            openProfileModal('add');
+        });
+    }
+
+    if (btnProfModalClose) btnProfModalClose.addEventListener('click', closeOverlays);
+    if (btnProfModalCancel) btnProfModalCancel.addEventListener('click', closeOverlays);
+    if (btnProfModalSave) btnProfModalSave.addEventListener('click', saveProfileModal);
+
+    if (profModalName) {
+        profModalName.addEventListener('input', updateProfileModalPreview);
+        profModalName.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                saveProfileModal();
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                closeOverlays();
+            }
+        });
+    }
+
+    if (profModalPalette) {
+        profModalPalette.addEventListener('click', (e) => {
+            const swatch = e.target.closest('.palette-swatch');
+            if (swatch) {
+                const color = swatch.getAttribute('data-color');
+                if (color) selectModalColor(color);
+            }
+        });
+    }
 
     profBtnAccount.addEventListener('click', () => {
         closeOverlays();
@@ -775,23 +903,6 @@
             sendIpc({ type: 'new_incognito' });
         });
     }
-
-    profBtnAdd.addEventListener('click', () => {
-        closeOverlays();
-        const nextNum = (state.profiles && state.profiles.length) ? state.profiles.length + 1 : 2;
-        const name = prompt('Enter name for the new profile:', `Person ${nextNum}`);
-        if (name && name.trim()) {
-            const colors = ['#4285f4', '#34a853', '#ea4335', '#fbbc05', '#9c27b0', '#009688', '#ff5722'];
-            const randomColor = colors[Math.floor(Math.random() * colors.length)];
-            sendIpc({
-                type: 'add_profile',
-                name: name.trim(),
-                email: '',
-                badge: '',
-                color: randomColor
-            });
-        }
-    });
 
     backdrop.addEventListener('click', closeOverlays);
 
@@ -1166,37 +1277,21 @@
         state.activeProfile = profiles.find(p => p.is_active) || profiles[0];
 
         const hasEmail = !!(state.activeProfile.email && state.activeProfile.email.trim());
+        const initial = (state.activeProfile.name || 'P').charAt(0).toUpperCase();
+        const profileColor = state.activeProfile.color || '#4285f4';
 
         if (toolbarAvatarInitial && toolbarAvatarSvg) {
-            if (hasEmail) {
-                const initial = (state.activeProfile.name || 'U').charAt(0).toUpperCase();
-                toolbarAvatarInitial.textContent = initial;
-                toolbarAvatarInitial.style.display = 'block';
-                toolbarAvatarSvg.style.display = 'none';
-                if (state.activeProfile.color) {
-                    toolbarAvatarInitial.parentElement.style.background = state.activeProfile.color;
-                }
-            } else {
-                toolbarAvatarInitial.style.display = 'none';
-                toolbarAvatarSvg.style.display = 'block';
-                toolbarAvatarInitial.parentElement.style.background = '#3c4043';
-            }
+            toolbarAvatarInitial.textContent = initial;
+            toolbarAvatarInitial.style.display = 'block';
+            toolbarAvatarSvg.style.display = 'none';
+            toolbarAvatarInitial.parentElement.style.background = profileColor;
         }
 
         if (popupAvatarInitial && popupAvatarSvg) {
-            if (hasEmail) {
-                const initial = (state.activeProfile.name || 'U').charAt(0).toUpperCase();
-                popupAvatarInitial.textContent = initial;
-                popupAvatarInitial.style.display = 'block';
-                popupAvatarSvg.style.display = 'none';
-                if (state.activeProfile.color) {
-                    popupAvatarCircle.style.background = state.activeProfile.color;
-                }
-            } else {
-                popupAvatarInitial.style.display = 'none';
-                popupAvatarSvg.style.display = 'block';
-                popupAvatarCircle.style.background = '#3c4043';
-            }
+            popupAvatarInitial.textContent = initial;
+            popupAvatarInitial.style.display = 'block';
+            popupAvatarSvg.style.display = 'none';
+            popupAvatarCircle.style.background = profileColor;
         }
 
         if (popupProfileName) {
