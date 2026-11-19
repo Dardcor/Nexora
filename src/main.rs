@@ -964,13 +964,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     let google_account_script = r#"
                                         (function() {
                                             try {
-                                                let el = document.querySelector('a[href*="SignOutOptions"]') ||
-                                                         document.querySelector('a[aria-label*="Google Account:"]') ||
-                                                         document.querySelector('a[aria-label*="Akun Google:"]') ||
-                                                         document.querySelector('div[aria-label*="Google Account:"]') ||
-                                                         document.querySelector('div[aria-label*="Akun Google:"]');
-                                                if (el) {
-                                                    let aria = el.getAttribute('aria-label') || '';
+                                                let els = document.querySelectorAll('a[aria-label*="@"], div[aria-label*="@"], a[href*="SignOutOptions"], a[aria-label*="Google Account:"], a[aria-label*="Akun Google:"]');
+                                                els.forEach(el => {
+                                                    let aria = el.getAttribute('aria-label') || el.innerText || '';
                                                     let match = aria.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
                                                     if (match && window.ipc) {
                                                         let email = match[1];
@@ -981,7 +977,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                                             name: name.length > 0 ? name : email.split('@')[0]
                                                         }));
                                                     }
-                                                }
+                                                });
                                             } catch(e) {}
                                         })();
                                     "#;
@@ -1014,10 +1010,27 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     "google_account_detected" => {
                                         if let Some(email) = v.get("email").and_then(|e| e.as_str()) {
                                             if !email.is_empty() {
-                                                let fallback = email.split('@').next().unwrap_or("User");
+                                                let email_clean = email.trim().to_string();
+                                                let fallback = email_clean.split('@').next().unwrap_or("User");
                                                 let name = v.get("name").and_then(|n| n.as_str()).filter(|s| !s.is_empty()).unwrap_or(fallback);
-                                                if let Ok(Some(active_prof)) = app.db.get_active_profile() {
-                                                    let _ = app.db.update_profile(&active_prof.id, name, email, "Google", &active_prof.color);
+                                                if let Ok(profiles) = app.db.get_profiles() {
+                                                    if let Some(existing) = profiles.iter().find(|p| p.email.eq_ignore_ascii_case(&email_clean)) {
+                                                        if existing.name != name {
+                                                            let _ = app.db.update_profile(&existing.id, name, &email_clean, "Google", &existing.color);
+                                                        }
+                                                    } else if let Some(active) = profiles.iter().find(|p| p.is_active) {
+                                                        if active.email.is_empty() {
+                                                            let _ = app.db.update_profile(&active.id, name, &email_clean, "Google", &active.color);
+                                                        } else {
+                                                            let colors = ["#4285f4", "#34a853", "#ea4335", "#fbbc05", "#9c27b0", "#009688", "#ff5722"];
+                                                            let next_color = colors[profiles.len() % colors.len()];
+                                                            if let Ok(new_prof) = app.db.add_profile(name, &email_clean, "Google", next_color) {
+                                                                let _ = app.db.switch_profile(&new_prof.id);
+                                                            }
+                                                        }
+                                                    } else {
+                                                        let _ = app.db.add_profile(name, &email_clean, "Google", "#4285f4");
+                                                    }
                                                     let _ = proxy.send_event(BrowserAction::GetProfiles);
                                                 }
                                             }
@@ -1487,8 +1500,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                     BrowserAction::SwitchProfile(id) => {
                         let _ = app.db.switch_profile(&id);
-                        let _ = proxy.send_event(BrowserAction::Navigate("nexora://home".into()));
                         if let Ok(profiles) = app.db.get_profiles() {
+                            if let Some(target) = profiles.iter().find(|p| p.id == id) {
+                                let target_url = if !target.email.is_empty() {
+                                    format!("https://accounts.google.com/AccountChooser?Email={}&continue=https://myaccount.google.com", target.email)
+                                } else {
+                                    "nexora://home".to_string()
+                                };
+                                let _ = proxy.send_event(BrowserAction::Navigate(target_url));
+                            }
                             if let Ok(json_str) = serde_json::to_string(&profiles) {
                                 let script = format!("if (window.__nexora_update_profiles) window.__nexora_update_profiles({});", json_str);
                                 let _ = toolbar_webview.evaluate_script(&script);

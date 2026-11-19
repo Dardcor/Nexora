@@ -210,7 +210,6 @@ impl NexoraDatabase {
 
         let _ = conn.execute("DELETE FROM bookmarks WHERE url IN ('https://github.com/Dardcor/Nexora', 'https://www.rust-lang.org', 'https://news.ycombinator.com', 'https://www.wikipedia.org')", []);
         let _ = conn.execute("UPDATE settings SET value = 'false' WHERE key = 'show_bookmarks_bar'", []);
-        let _ = conn.execute("DELETE FROM profiles WHERE id IN ('prof-acip', 'prof-afdaniko', 'prof-akehu', 'prof-ardi', 'prof-berlaut', 'prof-de')", []);
         let _ = conn.execute("UPDATE profiles SET name = 'Person 1', email = '', badge = '' WHERE email = 'dardcorxyz@gmail.com'", []);
 
         let prof_count: i64 = conn.query_row("SELECT COUNT(*) FROM profiles", [], |r| r.get(0))?;
@@ -220,6 +219,34 @@ impl NexoraDatabase {
                 "INSERT INTO profiles (id, name, email, avatar_url, badge, color, is_active, created_at)
                  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
                 params!["prof-default", "Person 1", "", "", "", "#5865f2", 1, now],
+            );
+        }
+
+        let has_acip: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM profiles WHERE LOWER(email) = 'aciplecet@gmail.com'",
+            [],
+            |r| r.get(0),
+        ).unwrap_or(0);
+        if has_acip == 0 {
+            let now = Utc::now().timestamp_millis();
+            let _ = conn.execute(
+                "INSERT INTO profiles (id, name, email, avatar_url, badge, color, is_active, created_at)
+                 VALUES (?1, ?2, ?3, '', 'Google', '#4285f4', 0, ?4)",
+                params!["prof-aciplecet", "Acip Lecet", "aciplecet@gmail.com", now],
+            );
+        }
+
+        let has_fcolua: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM profiles WHERE LOWER(email) = 'fcoluacoros@gmail.com'",
+            [],
+            |r| r.get(0),
+        ).unwrap_or(0);
+        if has_fcolua == 0 && prof_count > 0 {
+            let now = Utc::now().timestamp_millis();
+            let _ = conn.execute(
+                "INSERT INTO profiles (id, name, email, avatar_url, badge, color, is_active, created_at)
+                 VALUES (?1, ?2, ?3, '', 'Google', '#34a853', 0, ?4)",
+                params!["prof-fcoluacoros", "Fcolua Coros", "fcoluacoros@gmail.com", now],
             );
         }
 
