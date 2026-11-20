@@ -1,6 +1,6 @@
 [package]
 name = "nexora"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 authors = ["Dardcor <https://github.com/Dardcor>"]
 description = "Nexora: The ultra-lightweight, local-first, memory-safe, multi-layered security web browser built in Rust."
