@@ -14,13 +14,16 @@ jobs:
     name: Clean Old Releases
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
       - name: Clean up previous release tags if recreating
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
         run: |
           gh release delete v0.1.1 --yes || true
           gh release delete ${{ github.ref_name }} --yes || true
-          gh release create ${{ github.ref_name }} --title "Nexora ${{ github.ref_name }}" --generate-notes
 
   build-desktop:
     name: Build Desktop - ${{ matrix.target }}
