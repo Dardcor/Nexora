@@ -279,6 +279,9 @@ pub enum BrowserAction {
     CustomizeProfile { name: String, color: String },
     SignOut,
     BookmarksBarToggled(bool),
+    SyncTabs(Vec<nexora::vault::OpenTabRecord>),
+    SaveTabGroup(nexora::vault::TabGroupRecord),
+    DeleteTabGroup(String),
 }
 
 fn create_tab_webview(
@@ -620,6 +623,25 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         "sign_out" => {
                             let _ = proxy_toolbar.send_event(BrowserAction::SignOut);
                         }
+                        "sync_tabs" => {
+                            if let Some(tabs_val) = v.get("tabs") {
+                                if let Ok(tabs) = serde_json::from_value::<Vec<nexora::vault::OpenTabRecord>>(tabs_val.clone()) {
+                                    let _ = proxy_toolbar.send_event(BrowserAction::SyncTabs(tabs));
+                                }
+                            }
+                        }
+                        "save_tab_group" => {
+                            if let Some(group_val) = v.get("group") {
+                                if let Ok(group) = serde_json::from_value::<nexora::vault::TabGroupRecord>(group_val.clone()) {
+                                    let _ = proxy_toolbar.send_event(BrowserAction::SaveTabGroup(group));
+                                }
+                            }
+                        }
+                        "delete_tab_group" => {
+                            if let Some(group_id) = v.get("group_id").and_then(|g| g.as_str()) {
+                                let _ = proxy_toolbar.send_event(BrowserAction::DeleteTabGroup(group_id.to_string()));
+                            }
+                        }
                         _ => {}
                     }
                 }
@@ -676,24 +698,65 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let bm_toggle_script = format!("if (window.__nexora_toggle_bookmarks_bar_visibility) window.__nexora_toggle_bookmarks_bar_visibility({});", show_bm_bar_setting);
     let _ = toolbar_webview.evaluate_script(&bm_toggle_script);
 
+    let active_prof_id = app.db.get_active_profile().ok().flatten().map(|p| p.id).unwrap_or_else(|| "prof-default".to_string());
+    let saved_groups = if !is_incognito { app.db.get_tab_groups().unwrap_or_default() } else { Vec::new() };
+    let saved_tabs = if !is_incognito { app.db.get_open_tabs(Some(&active_prof_id)).unwrap_or_default() } else { Vec::new() };
+
+    if !saved_groups.is_empty() {
+        if let Ok(json_str) = serde_json::to_string(&saved_groups) {
+            let script = format!("if (window.__nexora_restore_tab_groups) window.__nexora_restore_tab_groups({});", json_str);
+            let _ = toolbar_webview.evaluate_script(&script);
+        }
+    }
+
     let mut tab_webviews: HashMap<String, wry::WebView> = HashMap::new();
     let mut tab_urls: HashMap<String, String> = HashMap::new();
     let mut active_tab_id: String = "tab-1".to_string();
     let mut closed_tabs: Vec<(String, String)> = Vec::new();
     let mut is_bookmarks_bar_visible = show_bm_bar_setting;
 
-    let initial_wv = create_tab_webview(
-        &window,
-        &active_tab_id,
-        "nexora://home",
-        content_bounds,
-        proxy.clone(),
-        Arc::clone(&app.security),
-        Arc::clone(&app.db),
-    )?;
-    let _ = initial_wv.set_visible(true);
-    tab_urls.insert(active_tab_id.clone(), "nexora://home".to_string());
-    tab_webviews.insert(active_tab_id.clone(), initial_wv);
+    if !saved_tabs.is_empty() {
+        let mut active_found = false;
+        for (idx, tab) in saved_tabs.iter().enumerate() {
+            let is_active = tab.is_active || (idx == 0 && !active_found);
+            if is_active {
+                active_tab_id = tab.id.clone();
+                active_found = true;
+            }
+            if let Ok(wv) = create_tab_webview(
+                &window,
+                &tab.id,
+                &tab.url,
+                content_bounds,
+                proxy.clone(),
+                Arc::clone(&app.security),
+                Arc::clone(&app.db),
+            ) {
+                let _ = wv.set_visible(is_active);
+                tab_urls.insert(tab.id.clone(), tab.url.clone());
+                tab_webviews.insert(tab.id.clone(), wv);
+                let _ = app.create_tab(tab.url.clone(), tab.title.clone(), "default".into());
+            }
+        }
+        if let Ok(json_str) = serde_json::to_string(&saved_tabs) {
+            let script = format!("if (window.__nexora_restore_tabs) window.__nexora_restore_tabs({});", json_str);
+            let _ = toolbar_webview.evaluate_script(&script);
+        }
+    } else {
+        let initial_wv = create_tab_webview(
+            &window,
+            &active_tab_id,
+            "nexora://home",
+            content_bounds,
+            proxy.clone(),
+            Arc::clone(&app.security),
+            Arc::clone(&app.db),
+        )?;
+        let _ = initial_wv.set_visible(true);
+        tab_urls.insert(active_tab_id.clone(), "nexora://home".to_string());
+        tab_webviews.insert(active_tab_id.clone(), initial_wv);
+        let _ = app.create_tab("nexora://home".into(), "Nexora Home".into(), "default".into());
+    }
     bring_toolbar_to_top();
 
     let _ = toolbar_webview.set_bounds(Rect {
@@ -1497,6 +1560,25 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 let _ = toolbar_webview.evaluate_script(&script);
                             }
                         }
+                        if !is_incognito {
+                            if let Ok(groups) = app.db.get_tab_groups() {
+                                if !groups.is_empty() {
+                                    if let Ok(json_str) = serde_json::to_string(&groups) {
+                                        let script = format!("if (window.__nexora_restore_tab_groups) window.__nexora_restore_tab_groups({});", json_str);
+                                        let _ = toolbar_webview.evaluate_script(&script);
+                                    }
+                                }
+                            }
+                            let active_prof_id = app.db.get_active_profile().ok().flatten().map(|p| p.id).unwrap_or_else(|| "prof-default".to_string());
+                            if let Ok(tabs) = app.db.get_open_tabs(Some(&active_prof_id)) {
+                                if !tabs.is_empty() {
+                                    if let Ok(json_str) = serde_json::to_string(&tabs) {
+                                        let script = format!("if (window.__nexora_restore_tabs) window.__nexora_restore_tabs({});", json_str);
+                                        let _ = toolbar_webview.evaluate_script(&script);
+                                    }
+                                }
+                            }
+                        }
                     }
                     BrowserAction::SwitchProfile(id) => {
                         let _ = app.db.switch_profile(&id);
@@ -1571,6 +1653,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
 
                         bring_toolbar_to_top();
+                    }
+                    BrowserAction::SyncTabs(tabs) => {
+                        let active_prof_id = app.db.get_active_profile().ok().flatten().map(|p| p.id).unwrap_or_else(|| "prof-default".to_string());
+                        let _ = app.db.save_open_tabs(&tabs, &active_prof_id);
+                    }
+                    BrowserAction::SaveTabGroup(group) => {
+                        let _ = app.db.save_tab_group(&group);
+                    }
+                    BrowserAction::DeleteTabGroup(group_id) => {
+                        let _ = app.db.delete_tab_group(&group_id);
                     }
                 }
             }

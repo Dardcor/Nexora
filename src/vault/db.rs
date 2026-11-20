@@ -70,6 +70,29 @@ pub struct SecureVaultRecord {
     pub updated_at: i64,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OpenTabRecord {
+    pub id: String,
+    pub profile_id: String,
+    pub url: String,
+    pub title: String,
+    pub favicon: String,
+    pub pinned: bool,
+    pub tab_order: i32,
+    pub group_id: Option<String>,
+    pub is_active: bool,
+    pub created_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TabGroupRecord {
+    pub id: String,
+    pub title: String,
+    pub color: String,
+    pub collapsed: bool,
+    pub created_at: i64,
+}
+
 pub struct NexoraDatabase {
     conn: Arc<Mutex<Connection>>,
     pub db_path: PathBuf,
@@ -173,7 +196,30 @@ impl NexoraDatabase {
                 created_at INTEGER NOT NULL,
                 updated_at INTEGER NOT NULL
             );
-            CREATE INDEX IF NOT EXISTS idx_vault_cat ON secure_vault(category, identifier);",
+            CREATE INDEX IF NOT EXISTS idx_vault_cat ON secure_vault(category, identifier);
+
+            CREATE TABLE IF NOT EXISTS tab_groups (
+                id TEXT PRIMARY KEY,
+                title TEXT NOT NULL,
+                color TEXT NOT NULL DEFAULT '#4285f4',
+                collapsed INTEGER NOT NULL DEFAULT 0,
+                created_at INTEGER NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS open_tabs (
+                id TEXT PRIMARY KEY,
+                profile_id TEXT NOT NULL DEFAULT 'prof-default',
+                url TEXT NOT NULL,
+                title TEXT NOT NULL,
+                favicon TEXT NOT NULL DEFAULT '',
+                pinned INTEGER NOT NULL DEFAULT 0,
+                tab_order INTEGER NOT NULL DEFAULT 0,
+                group_id TEXT,
+                is_active INTEGER NOT NULL DEFAULT 0,
+                created_at INTEGER NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_open_tabs_order ON open_tabs(tab_order ASC);
+            CREATE INDEX IF NOT EXISTS idx_open_tabs_profile ON open_tabs(profile_id);",
         )?;
 
         let _ = conn.execute(
@@ -710,6 +756,112 @@ impl NexoraDatabase {
         let count = conn.execute("DELETE FROM secure_vault WHERE id = ?1", params![id])?;
         Ok(count > 0)
     }
+
+    pub fn save_open_tabs(&self, tabs: &[OpenTabRecord], profile_id: &str) -> SqlResult<()> {
+        let mut conn = self.conn.lock();
+        let tx = conn.transaction()?;
+        tx.execute("DELETE FROM open_tabs WHERE profile_id = ?1", params![profile_id])?;
+        {
+            let mut stmt = tx.prepare(
+                "INSERT INTO open_tabs (id, profile_id, url, title, favicon, pinned, tab_order, group_id, is_active, created_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+            )?;
+            for (idx, tab) in tabs.iter().enumerate() {
+                stmt.execute(params![
+                    tab.id,
+                    profile_id,
+                    tab.url,
+                    tab.title,
+                    tab.favicon,
+                    if tab.pinned { 1 } else { 0 },
+                    idx as i32,
+                    tab.group_id,
+                    if tab.is_active { 1 } else { 0 },
+                    tab.created_at,
+                ])?;
+            }
+        }
+        tx.commit()?;
+        Ok(())
+    }
+
+    pub fn get_open_tabs(&self, profile_id: Option<&str>) -> SqlResult<Vec<OpenTabRecord>> {
+        let conn = self.conn.lock();
+        let target_prof = profile_id.unwrap_or("prof-default");
+        let mut stmt = conn.prepare(
+            "SELECT id, profile_id, url, title, favicon, pinned, tab_order, group_id, is_active, created_at
+             FROM open_tabs WHERE profile_id = ?1 ORDER BY tab_order ASC",
+        )?;
+        let rows = stmt.query_map(params![target_prof], |row| {
+            let pinned_int: i32 = row.get(5)?;
+            let active_int: i32 = row.get(8)?;
+            Ok(OpenTabRecord {
+                id: row.get(0)?,
+                profile_id: row.get(1)?,
+                url: row.get(2)?,
+                title: row.get(3)?,
+                favicon: row.get(4)?,
+                pinned: pinned_int != 0,
+                tab_order: row.get(6)?,
+                group_id: row.get(7)?,
+                is_active: active_int != 0,
+                created_at: row.get(9)?,
+            })
+        })?;
+
+        let mut results = Vec::new();
+        for r in rows {
+            results.push(r?);
+        }
+        Ok(results)
+    }
+
+    pub fn get_tab_groups(&self) -> SqlResult<Vec<TabGroupRecord>> {
+        let conn = self.conn.lock();
+        let mut stmt = conn.prepare(
+            "SELECT id, title, color, collapsed, created_at FROM tab_groups ORDER BY created_at ASC",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            let collapsed_int: i32 = row.get(3)?;
+            Ok(TabGroupRecord {
+                id: row.get(0)?,
+                title: row.get(1)?,
+                color: row.get(2)?,
+                collapsed: collapsed_int != 0,
+                created_at: row.get(4)?,
+            })
+        })?;
+
+        let mut results = Vec::new();
+        for r in rows {
+            results.push(r?);
+        }
+        Ok(results)
+    }
+
+    pub fn save_tab_group(&self, group: &TabGroupRecord) -> SqlResult<()> {
+        let conn = self.conn.lock();
+        conn.execute(
+            "INSERT INTO tab_groups (id, title, color, collapsed, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5)
+             ON CONFLICT(id) DO UPDATE SET title = excluded.title, color = excluded.color, collapsed = excluded.collapsed",
+            params![
+                group.id,
+                group.title,
+                group.color,
+                if group.collapsed { 1 } else { 0 },
+                group.created_at,
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn delete_tab_group(&self, group_id: &str) -> SqlResult<()> {
+        let conn = self.conn.lock();
+        conn.execute("DELETE FROM tab_groups WHERE id = ?1", params![group_id])?;
+        conn.execute("UPDATE open_tabs SET group_id = NULL WHERE group_id = ?1", params![group_id])?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -767,6 +919,56 @@ mod tests {
         assert!(cleared_count >= 1);
         let history_after = db.query_history("Nexora", 10).unwrap();
         assert!(history_after.is_empty());
+
+        let group = TabGroupRecord {
+            id: "group-work".to_string(),
+            title: "Work".to_string(),
+            color: "#4285f4".to_string(),
+            collapsed: false,
+            created_at: 1000,
+        };
+        db.save_tab_group(&group).unwrap();
+        let groups = db.get_tab_groups().unwrap();
+        assert_eq!(groups.len(), 1);
+        assert_eq!(groups[0].title, "Work");
+
+        let test_tabs = vec![
+            OpenTabRecord {
+                id: "tab-1".to_string(),
+                profile_id: "prof-default".to_string(),
+                url: "https://github.com/Dardcor/Nexora".to_string(),
+                title: "Nexora".to_string(),
+                favicon: "".to_string(),
+                pinned: true,
+                tab_order: 0,
+                group_id: Some("group-work".to_string()),
+                is_active: true,
+                created_at: 1000,
+            },
+            OpenTabRecord {
+                id: "tab-2".to_string(),
+                profile_id: "prof-default".to_string(),
+                url: "https://rust-lang.org".to_string(),
+                title: "Rust".to_string(),
+                favicon: "".to_string(),
+                pinned: false,
+                tab_order: 1,
+                group_id: None,
+                is_active: false,
+                created_at: 1001,
+            },
+        ];
+        db.save_open_tabs(&test_tabs, "prof-default").unwrap();
+        let restored = db.get_open_tabs(Some("prof-default")).unwrap();
+        assert_eq!(restored.len(), 2);
+        assert!(restored[0].pinned);
+        assert_eq!(restored[0].group_id.as_deref(), Some("group-work"));
+
+        db.delete_tab_group("group-work").unwrap();
+        let groups_after = db.get_tab_groups().unwrap();
+        assert!(groups_after.is_empty());
+        let restored_after = db.get_open_tabs(Some("prof-default")).unwrap();
+        assert_eq!(restored_after[0].group_id, None);
 
         let _ = fs::remove_dir_all(temp_dir);
     }

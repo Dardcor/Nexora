@@ -5,8 +5,9 @@
 
     const state = {
         tabs: [
-            { id: 'tab-1', title: 'Nexora Home', url: 'nexora://home', favicon: '', pinned: false }
+            { id: 'tab-1', title: 'Nexora Home', url: 'nexora://home', favicon: '', pinned: false, groupId: null, createdAt: Date.now() }
         ],
+        groups: [],
         activeTabId: 'tab-1',
         shieldCount: 0,
         isBookmarked: false,
@@ -123,6 +124,15 @@
     const btnProfModalCancel = document.getElementById('btn-prof-modal-cancel');
     const btnProfModalSave = document.getElementById('btn-prof-modal-save');
 
+    const tabGroupDialog = document.getElementById('tab-group-dialog');
+    const tabGroupModalTitle = document.getElementById('tab-group-modal-title');
+    const btnTabGroupClose = document.getElementById('btn-tab-group-close');
+    const tabGroupName = document.getElementById('tab-group-name');
+    const tabGroupPalette = document.getElementById('tab-group-palette');
+    const btnTabGroupDelete = document.getElementById('btn-tab-group-delete');
+    const btnTabGroupSave = document.getElementById('btn-tab-group-save');
+    const menuItemRemoveGroup = document.getElementById('menu-item-remove-group');
+
     function sendIpc(msg) {
         if (window.ipc) {
             window.ipc.postMessage(JSON.stringify(msg));
@@ -161,7 +171,8 @@
                         (tabContextMenu && tabContextMenu.classList.contains('show')) ||
                         (bookmarkEditDialog && bookmarkEditDialog.classList.contains('show')) ||
                         (clearDataDialog && clearDataDialog.classList.contains('show')) ||
-                        (profileModalDialog && profileModalDialog.classList.contains('show'));
+                        (profileModalDialog && profileModalDialog.classList.contains('show')) ||
+                        (tabGroupDialog && tabGroupDialog.classList.contains('show'));
 
         if (moreMenuDropdown) moreMenuDropdown.classList.remove('show');
         if (profilePopup) profilePopup.classList.remove('show');
@@ -173,6 +184,7 @@
         if (bookmarkEditDialog) bookmarkEditDialog.classList.remove('show');
         if (clearDataDialog) clearDataDialog.classList.remove('show');
         if (profileModalDialog) profileModalDialog.classList.remove('show');
+        if (tabGroupDialog) tabGroupDialog.classList.remove('show');
         if (backdrop) backdrop.classList.remove('show');
         state.selectedIndex = -1;
 
@@ -181,15 +193,206 @@
         }
     }
 
+    let syncTabsTimer = null;
+    function syncTabsToDatabase() {
+        if (state.isIncognito) return;
+        if (syncTabsTimer) clearTimeout(syncTabsTimer);
+        syncTabsTimer = setTimeout(() => {
+            const profileId = state.activeProfile ? state.activeProfile.id : 'default';
+            const tabsPayload = state.tabs.map((tab, idx) => ({
+                id: tab.id,
+                profile_id: profileId,
+                url: tab.url || 'nexora://home',
+                title: tab.title || 'Nexora Home',
+                favicon: tab.favicon || '',
+                pinned: !!tab.pinned,
+                tab_order: idx,
+                group_id: tab.groupId || null,
+                is_active: tab.id === state.activeTabId,
+                created_at: tab.createdAt || Date.now()
+            }));
+            sendIpc({ type: 'sync_tabs', tabs: tabsPayload });
+        }, 120);
+    }
+
+    let activeEditingGroup = null;
+    let activeTargetTabId = null;
+    let activeGroupColor = '#4285f4';
+
+    function selectGroupColor(color) {
+        activeGroupColor = color || '#4285f4';
+        if (tabGroupPalette) {
+            const swatches = tabGroupPalette.querySelectorAll('.palette-swatch');
+            swatches.forEach(swatch => {
+                if (swatch.getAttribute('data-color') === activeGroupColor) {
+                    swatch.classList.add('active');
+                } else {
+                    swatch.classList.remove('active');
+                }
+            });
+        }
+    }
+
+    function openTabGroupDialog(group, targetTabId, clientX) {
+        closeOverlays();
+        if (!tabGroupDialog) return;
+
+        if (group) {
+            activeEditingGroup = group;
+            activeTargetTabId = null;
+            if (tabGroupModalTitle) tabGroupModalTitle.textContent = 'Edit tab group';
+            if (tabGroupName) tabGroupName.value = group.title || '';
+            selectGroupColor(group.color || '#4285f4');
+            if (btnTabGroupDelete) btnTabGroupDelete.style.display = 'inline-flex';
+        } else {
+            activeEditingGroup = null;
+            activeTargetTabId = targetTabId;
+            if (tabGroupModalTitle) tabGroupModalTitle.textContent = 'Name this group';
+            if (tabGroupName) tabGroupName.value = '';
+            selectGroupColor('#4285f4');
+            if (btnTabGroupDelete) btnTabGroupDelete.style.display = 'none';
+        }
+
+        const x = typeof clientX === 'number' ? Math.min(clientX, window.innerWidth - 300) : 80;
+        tabGroupDialog.style.left = `${Math.max(10, x)}px`;
+        tabGroupDialog.classList.add('show');
+        if (backdrop) backdrop.classList.add('show');
+        expandOverlay(320);
+
+        setTimeout(() => {
+            if (tabGroupName) {
+                tabGroupName.focus();
+                tabGroupName.select();
+            }
+        }, 50);
+    }
+
+    function saveTabGroupModal() {
+        const title = tabGroupName ? (tabGroupName.value.trim() || 'Group') : 'Group';
+        if (activeEditingGroup) {
+            activeEditingGroup.title = title;
+            activeEditingGroup.color = activeGroupColor;
+            sendIpc({ type: 'save_tab_group', group: activeEditingGroup });
+        } else {
+            const newGroupId = 'grp-' + Date.now();
+            const newGroup = {
+                id: newGroupId,
+                title: title,
+                color: activeGroupColor,
+                collapsed: false,
+                created_at: Date.now()
+            };
+            state.groups.push(newGroup);
+            sendIpc({ type: 'save_tab_group', group: newGroup });
+            if (activeTargetTabId) {
+                const targetTab = state.tabs.find(t => t.id === activeTargetTabId);
+                if (targetTab) {
+                    targetTab.groupId = newGroupId;
+                }
+            }
+        }
+        renderTabs();
+        syncTabsToDatabase();
+        closeOverlays();
+    }
+
+    if (btnTabGroupClose) btnTabGroupClose.addEventListener('click', closeOverlays);
+    if (btnTabGroupSave) btnTabGroupSave.addEventListener('click', saveTabGroupModal);
+    if (btnTabGroupDelete) {
+        btnTabGroupDelete.addEventListener('click', () => {
+            if (activeEditingGroup) {
+                const gid = activeEditingGroup.id;
+                state.groups = state.groups.filter(g => g.id !== gid);
+                state.tabs.forEach(t => {
+                    if (t.groupId === gid) {
+                        t.groupId = null;
+                    }
+                });
+                sendIpc({ type: 'delete_tab_group', id: gid });
+                renderTabs();
+                syncTabsToDatabase();
+            }
+            closeOverlays();
+        });
+    }
+
+    if (tabGroupName) {
+        tabGroupName.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                saveTabGroupModal();
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                closeOverlays();
+            }
+        });
+    }
+
+    if (tabGroupPalette) {
+        tabGroupPalette.addEventListener('click', (e) => {
+            const swatch = e.target.closest('.palette-swatch');
+            if (swatch) {
+                const color = swatch.getAttribute('data-color');
+                if (color) selectGroupColor(color);
+            }
+        });
+    }
+
     function renderTabs() {
         tabStrip.innerHTML = '';
+        const renderedGroupIds = new Set();
+
         state.tabs.forEach(tab => {
+            if (tab.groupId) {
+                const group = state.groups.find(g => g.id === tab.groupId) || {
+                    id: tab.groupId,
+                    title: 'Group',
+                    color: '#4285f4',
+                    collapsed: false
+                };
+
+                if (!renderedGroupIds.has(tab.groupId)) {
+                    renderedGroupIds.add(tab.groupId);
+                    const badge = document.createElement('div');
+                    badge.className = `tab-group-badge ${group.collapsed ? 'collapsed' : ''}`;
+                    badge.style.setProperty('--group-color', group.color || '#4285f4');
+                    badge.title = `${group.title || 'Group'} (Click to collapse/expand, right-click to edit)`;
+                    badge.innerHTML = `
+                        <span class="group-dot"></span>
+                        <span class="group-title">${escapeHtml(group.title || 'Group')}</span>
+                    `;
+                    badge.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        group.collapsed = !group.collapsed;
+                        sendIpc({ type: 'save_tab_group', group: group });
+                        renderTabs();
+                    });
+                    badge.addEventListener('contextmenu', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        openTabGroupDialog(group, null, e.clientX);
+                    });
+                    tabStrip.appendChild(badge);
+                }
+
+                if (group.collapsed && tab.id !== state.activeTabId) {
+                    return;
+                }
+            }
+
             const isActive = tab.id === state.activeTabId;
             const tabEl = document.createElement('div');
             tabEl.className = `tab-item ${isActive ? 'active' : ''} ${tab.pinned ? 'pinned' : ''}`;
             tabEl.setAttribute('role', 'tab');
             tabEl.setAttribute('aria-selected', isActive ? 'true' : 'false');
             tabEl.dataset.id = tab.id;
+
+            if (tab.groupId) {
+                const group = state.groups.find(g => g.id === tab.groupId);
+                const color = (group && group.color) ? group.color : '#4285f4';
+                tabEl.setAttribute('data-group-color', color);
+                tabEl.style.setProperty('--tab-group-color', color);
+            }
 
             let faviconHtml = '';
             const rawUrl = tab.url || '';
@@ -254,6 +457,9 @@
             tabEl.addEventListener('contextmenu', (e) => {
                 e.preventDefault();
                 state.contextTabId = tab.id;
+                if (menuItemRemoveGroup) {
+                    menuItemRemoveGroup.style.display = tab.groupId ? 'block' : 'none';
+                }
                 sendIpc({
                     type: 'tab_context_menu',
                     tab_id: tab.id,
@@ -281,17 +487,19 @@
             sendIpc({ type: 'switch_tab', id: id });
         }
         renderTabs();
+        syncTabsToDatabase();
     }
 
     function createNewTab(initialUrl, initialTitle) {
         const newId = 'tab-' + Date.now();
         const url = (typeof initialUrl === 'string' && initialUrl) ? initialUrl : 'nexora://home';
         const title = (typeof initialTitle === 'string' && initialTitle) ? initialTitle : 'Nexora Home';
-        const newTab = { id: newId, title: title, url: url, favicon: '', pinned: false };
+        const newTab = { id: newId, title: title, url: url, favicon: '', pinned: false, groupId: null, createdAt: Date.now() };
         state.tabs.push(newTab);
         state.activeTabId = newId;
         omniboxInput.value = (url === 'nexora://home') ? '' : url;
         renderTabs();
+        syncTabsToDatabase();
         closeOverlays();
         sendIpc({ type: 'new_tab', id: newId });
     }
@@ -301,7 +509,9 @@
             state.tabs[0].url = 'nexora://home';
             state.tabs[0].title = 'Nexora Home';
             state.tabs[0].favicon = '';
+            state.tabs[0].groupId = null;
             switchTab(state.tabs[0].id);
+            syncTabsToDatabase();
             sendIpc({ type: 'navigate', url: 'nexora://home' });
             return;
         }
@@ -317,6 +527,7 @@
         } else {
             renderTabs();
         }
+        syncTabsToDatabase();
         sendIpc({ type: 'close_tab', id: id });
     }
 
@@ -349,6 +560,7 @@
             active.url = targetUrl;
             omniboxInput.value = (targetUrl === 'nexora://home') ? '' : targetUrl;
             renderTabs();
+            syncTabsToDatabase();
         }
 
         sendIpc({ type: 'navigate', url: targetUrl });
@@ -1177,6 +1389,7 @@
             else if (url === 'nexora://settings') active.title = 'Settings - Nexora';
             else if (url === 'nexora://downloads') active.title = 'Downloads - Nexora';
             renderTabs();
+            syncTabsToDatabase();
         }
     };
 
@@ -1185,6 +1398,7 @@
         if (tab && title && title !== 'Untitled' && title !== 'about:blank') {
             tab.title = title;
             renderTabs();
+            syncTabsToDatabase();
         }
     };
 
@@ -1197,6 +1411,7 @@
         if (tab && faviconUrl && !faviconUrl.includes('null/favicon.ico')) {
             tab.favicon = faviconUrl;
             renderTabs();
+            syncTabsToDatabase();
         }
     };
 
@@ -1365,23 +1580,42 @@
 
         switch (action) {
             case 'new_tab': {
+                const targetTab = state.tabs[index];
                 const newId = 'tab-' + Date.now();
-                const newTab = { id: newId, title: 'Nexora Home', url: 'nexora://home', favicon: '', pinned: false };
+                const newTab = {
+                    id: newId,
+                    title: 'Nexora Home',
+                    url: 'nexora://home',
+                    favicon: '',
+                    pinned: false,
+                    groupId: targetTab ? targetTab.groupId : null,
+                    createdAt: Date.now()
+                };
                 state.tabs.splice(index + 1, 0, newTab);
                 state.activeTabId = newId;
                 omniboxInput.value = '';
                 renderTabs();
+                syncTabsToDatabase();
                 sendIpc({ type: 'new_tab', id: newId });
                 break;
             }
             case 'duplicate': {
                 const targetTab = state.tabs[index];
                 const newId = 'tab-' + Date.now();
-                const newTab = { id: newId, title: targetTab.title, url: targetTab.url, favicon: targetTab.favicon, pinned: false };
+                const newTab = {
+                    id: newId,
+                    title: targetTab.title,
+                    url: targetTab.url,
+                    favicon: targetTab.favicon,
+                    pinned: false,
+                    groupId: targetTab.groupId || null,
+                    createdAt: Date.now()
+                };
                 state.tabs.splice(index + 1, 0, newTab);
                 state.activeTabId = newId;
                 omniboxInput.value = (newTab.url === 'nexora://home') ? '' : newTab.url;
                 renderTabs();
+                syncTabsToDatabase();
                 sendIpc({ type: 'new_tab', id: newId });
                 if (newTab.url && newTab.url !== 'nexora://home') {
                     sendIpc({ type: 'navigate', url: newTab.url });
@@ -1400,6 +1634,20 @@
             case 'pin': {
                 state.tabs[index].pinned = !state.tabs[index].pinned;
                 renderTabs();
+                syncTabsToDatabase();
+                break;
+            }
+            case 'add_to_new_group': {
+                openTabGroupDialog(null, targetId);
+                break;
+            }
+            case 'remove_from_group': {
+                const targetTab = state.tabs.find(t => t.id === targetId);
+                if (targetTab) {
+                    targetTab.groupId = null;
+                    renderTabs();
+                    syncTabsToDatabase();
+                }
                 break;
             }
             case 'close': {
@@ -1413,6 +1661,7 @@
                 state.tabs = [kept];
                 state.activeTabId = kept.id;
                 switchTab(kept.id);
+                syncTabsToDatabase();
                 break;
             }
             case 'close_right': {
@@ -1425,8 +1674,37 @@
                 } else {
                     renderTabs();
                 }
+                syncTabsToDatabase();
                 break;
             }
+        }
+    };
+
+    window.__nexora_restore_tab_groups = function(groups) {
+        if (Array.isArray(groups)) {
+            state.groups = groups;
+            renderTabs();
+        }
+    };
+
+    window.__nexora_restore_tabs = function(tabs) {
+        if (Array.isArray(tabs) && tabs.length > 0) {
+            state.tabs = tabs.map(t => ({
+                id: t.id,
+                title: t.title || 'Nexora Home',
+                url: t.url || 'nexora://home',
+                favicon: t.favicon || '',
+                pinned: !!t.pinned,
+                groupId: t.group_id || null,
+                createdAt: t.created_at || Date.now()
+            }));
+            const active = tabs.find(t => t.is_active) || tabs[0];
+            state.activeTabId = active ? active.id : tabs[0].id;
+            const curTab = state.tabs.find(t => t.id === state.activeTabId);
+            if (curTab) {
+                omniboxInput.value = (curTab.url === 'nexora://home' || curTab.url === '') ? '' : curTab.url;
+            }
+            renderTabs();
         }
     };
 
