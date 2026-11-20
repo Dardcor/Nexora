@@ -1,6 +1,6 @@
 [package]
 name = "nexora"
-version = "0.1.1"
+version = "0.1.0"
 edition = "2021"
 authors = ["Dardcor <https://github.com/Dardcor>"]
 description = "Nexora: The ultra-lightweight, local-first, memory-safe, multi-layered security web browser built in Rust."
@@ -9,6 +9,15 @@ license = "MIT OR Apache-2.0"
 readme = "README.md"
 keywords = ["browser", "rust", "lightweight", "privacy", "security"]
 categories = ["web-programming", "gui"]
+
+[lib]
+name = "nexora"
+crate-type = ["rlib"]
+path = "src/lib.rs"
+
+[[bin]]
+name = "nexora"
+path = "src/main.rs"
 
 [dependencies]
 wry = "0.47"
